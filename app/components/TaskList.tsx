@@ -14,6 +14,11 @@ import {
   addWeeks,
   addYears,
   endOfDay,
+  differenceInCalendarDays,
+  differenceInCalendarMonths,
+  differenceInCalendarWeeks,
+  differenceInCalendarYears,
+  format,
   isBefore,
   isSameDay,
   isWithinInterval,
@@ -34,6 +39,7 @@ type TaskContextValue = {
   selectedCategory: string;
   setSelectedCategory: (value: string) => void;
   addTask: (input: string) => void;
+  addTasks: (tasks: Task[]) => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
   deleteTask: (id: string) => void;
   toggleStatus: (id: string) => void;
@@ -41,7 +47,16 @@ type TaskContextValue = {
   replaceTasks: (tasks: Task[]) => void;
   recentlyDeleted: Task | null;
   undoDelete: () => void;
+  reminderStatus: NotificationPermission | "unsupported";
+  requestReminderPermission: () => void;
   isReady: boolean;
+};
+
+type TemplateTaskEntry = {
+  title: string;
+  category: string;
+  overrides: Partial<Task>;
+  checklistItems?: string[];
 };
 
 const TaskContext = createContext<TaskContextValue | null>(null);
@@ -53,6 +68,10 @@ const normalizeTask = (task: Task): Task => ({
   tags: Array.isArray(task.tags) ? task.tags : [],
   repeat: task.repeat ?? "none",
   checklist: Array.isArray(task.checklist) ? task.checklist : [],
+  reminderAt: task.reminderAt ?? null,
+  myDay: Array.isArray(task.myDay) ? task.myDay : [],
+  lastCompletedAt: task.lastCompletedAt ?? null,
+  streak: typeof task.streak === "number" ? task.streak : 0,
 });
 
 const getCategoryFromInput = (input: string, categories: Category[]) => {
@@ -98,14 +117,28 @@ const createTask = (
   category,
   tags: [],
   dueDate: null,
+  reminderAt: null,
   priority: "none",
   repeat: "none",
   status: "todo",
   notes: "",
   checklist: [],
+  myDay: [],
+  lastCompletedAt: null,
+  streak: 0,
   createdAt: new Date().toISOString(),
   ...overrides,
 });
+
+const createChecklistItems = (items: string[]): ChecklistItem[] =>
+  items.map((text) => ({
+    id:
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `check-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    text,
+    done: false,
+  }));
 
 const extractTags = (input: string) =>
   Array.from(input.matchAll(/@([a-z0-9-]+)/gi)).map((match) =>
@@ -184,7 +217,13 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
   const [tasks, setTasks, isReady] = useLocalStorage<Task[]>(STORAGE_KEY, []);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [recentlyDeleted, setRecentlyDeleted] = useState<Task | null>(null);
+  const [reminderStatus, setReminderStatus] = useState<
+    NotificationPermission | "unsupported"
+  >("default");
   const deleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reminderTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+    new Map()
+  );
 
   const categories = useMemo(() => DEFAULT_CATEGORIES, []);
 
@@ -206,6 +245,65 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
     });
   }, [isReady, setTasks]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (!("Notification" in window)) {
+      setReminderStatus("unsupported");
+      return;
+    }
+    setReminderStatus(Notification.permission);
+  }, []);
+
+  useEffect(() => {
+    if (!isReady || reminderStatus !== "granted") {
+      reminderTimeouts.current.forEach((timeout) => clearTimeout(timeout));
+      reminderTimeouts.current.clear();
+      return;
+    }
+
+    reminderTimeouts.current.forEach((timeout) => clearTimeout(timeout));
+    reminderTimeouts.current.clear();
+
+    const now = Date.now();
+    tasks.forEach((task) => {
+      if (!task.reminderAt || task.status === "done") {
+        return;
+      }
+      const remindAt = new Date(task.reminderAt).getTime();
+      if (!Number.isFinite(remindAt) || remindAt <= now) {
+        return;
+      }
+      const timeout = setTimeout(() => {
+        if (Notification.permission === "granted") {
+          new Notification("Timely reminder", {
+            body: task.title,
+          });
+        }
+      }, remindAt - now);
+      reminderTimeouts.current.set(task.id, timeout);
+    });
+
+    return () => {
+      reminderTimeouts.current.forEach((timeout) => clearTimeout(timeout));
+      reminderTimeouts.current.clear();
+    };
+  }, [isReady, reminderStatus, tasks]);
+
+  const requestReminderPermission = () => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (!("Notification" in window)) {
+      setReminderStatus("unsupported");
+      return;
+    }
+    Notification.requestPermission().then((permission) => {
+      setReminderStatus(permission);
+    });
+  };
+
   const addTask = (input: string) => {
     const title = cleanTaskTitle(input);
     if (!title) {
@@ -225,6 +323,13 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
     });
 
     setTasks((current) => [newTask, ...current]);
+  };
+
+  const addTasks = (newTasks: Task[]) => {
+    if (newTasks.length === 0) {
+      return;
+    }
+    setTasks((current) => [...newTasks, ...current]);
   };
 
   const updateTask = (id: string, updates: Partial<Task>) => {
@@ -274,9 +379,42 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
         }
 
         const isCompleting = task.status !== "done";
+        const now = new Date();
+        let nextStreak = task.streak;
+        if (isCompleting && task.repeat !== "none") {
+          if (!task.lastCompletedAt) {
+            nextStreak = 1;
+          } else {
+            const lastCompleted = new Date(task.lastCompletedAt);
+            let delta = 0;
+            switch (task.repeat) {
+              case "daily":
+                delta = differenceInCalendarDays(now, lastCompleted);
+                break;
+              case "weekly":
+                delta = differenceInCalendarWeeks(now, lastCompleted);
+                break;
+              case "monthly":
+                delta = differenceInCalendarMonths(now, lastCompleted);
+                break;
+              case "yearly":
+                delta = differenceInCalendarYears(now, lastCompleted);
+                break;
+            }
+            if (delta <= 0) {
+              nextStreak = task.streak;
+            } else if (delta === 1) {
+              nextStreak = task.streak + 1;
+            } else {
+              nextStreak = 1;
+            }
+          }
+        }
         nextTasks.push({
           ...task,
           status: isCompleting ? "done" : "todo",
+          lastCompletedAt: isCompleting ? now.toISOString() : task.lastCompletedAt,
+          streak: isCompleting ? nextStreak : task.streak,
         });
 
         if (isCompleting && task.repeat !== "none") {
@@ -317,6 +455,10 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
               dueDate: startOfDay(nextDate).toISOString(),
               notes: task.notes,
               checklist: resetChecklist,
+              reminderAt: null,
+              myDay: [],
+              lastCompletedAt: null,
+              streak: task.streak,
             })
           );
         }
@@ -340,6 +482,7 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
     selectedCategory,
     setSelectedCategory,
     addTask,
+    addTasks,
     updateTask,
     deleteTask,
     toggleStatus,
@@ -347,6 +490,8 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
     replaceTasks,
     recentlyDeleted,
     undoDelete,
+    reminderStatus,
+    requestReminderPermission,
     isReady,
   };
 
@@ -373,15 +518,94 @@ export function TaskList() {
     recentlyDeleted,
     undoDelete,
     replaceTasks,
+    addTasks,
+    reminderStatus,
+    requestReminderPermission,
   } = useTaskStore();
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [selectedList, setSelectedList] = useState<
-    "inbox" | "today" | "upcoming" | "overdue" | "all"
+    "inbox" | "today" | "myday" | "upcoming" | "overdue" | "habits" | "all"
   >("inbox");
   const [searchTerm, setSearchTerm] = useState("");
 
+  const templates = useMemo(
+    () => [
+      {
+        id: "morning",
+        label: "Morning routine",
+        tasks: [
+          {
+            title: "Morning routine",
+            category: "health",
+            overrides: {
+              tags: ["habit", "morning"],
+              repeat: "daily",
+            },
+            checklistItems: ["Hydrate", "Stretch", "Plan top 3"],
+          },
+        ],
+      },
+      {
+        id: "deep-work",
+        label: "Deep work block",
+        tasks: [
+          {
+            title: "Deep work block",
+            category: "work",
+            overrides: {
+              tags: ["focus"],
+              priority: "high",
+            },
+          },
+        ],
+      },
+      {
+        id: "weekly-review",
+        label: "Weekly review",
+        tasks: [
+          {
+            title: "Weekly review",
+            category: "work",
+            overrides: {
+              tags: ["review"],
+              repeat: "weekly",
+            },
+          },
+        ],
+      },
+      {
+        id: "workout",
+        label: "Workout",
+        tasks: [
+          {
+            title: "Workout",
+            category: "health",
+            overrides: {
+              tags: ["habit"],
+              repeat: "weekly",
+            },
+          },
+        ],
+      },
+      {
+        id: "groceries",
+        label: "Grocery list",
+        tasks: [
+          {
+            title: "Grocery list",
+            category: "personal",
+            overrides: {},
+            checklistItems: ["Produce", "Protein", "Pantry staples"],
+          },
+        ],
+      },
+    ],
+    []
+  );
+
   const today = startOfDay(new Date());
+  const todayKey = format(today, "yyyy-MM-dd");
   const upcomingEnd = endOfDay(addDays(today, 7));
 
   const filteredTasks = tasks.filter((task) => {
@@ -392,6 +616,8 @@ export function TaskList() {
           return dueDate === null;
         case "today":
           return dueDate ? isSameDay(dueDate, today) : false;
+        case "myday":
+          return (task.myDay ?? []).includes(todayKey);
         case "upcoming":
           return dueDate
             ? isWithinInterval(dueDate, {
@@ -400,7 +626,9 @@ export function TaskList() {
               })
             : false;
         case "overdue":
-          return dueDate ? isBefore(dueDate, today) : false;
+          return dueDate ? isBefore(dueDate, today) && task.status !== "done" : false;
+        case "habits":
+          return task.repeat !== "none";
         case "all":
         default:
           return true;
@@ -478,10 +706,14 @@ export function TaskList() {
               ? "Inbox"
               : selectedList === "today"
               ? "Today"
+              : selectedList === "myday"
+              ? "My Day"
               : selectedList === "upcoming"
               ? "Upcoming"
               : selectedList === "overdue"
               ? "Overdue"
+              : selectedList === "habits"
+              ? "Habits"
               : "All tasks"}
           </h2>
           <p className="text-sm text-stone-500">
@@ -489,10 +721,14 @@ export function TaskList() {
               ? "Brain dump tasks live here."
               : selectedList === "today"
               ? "Focus on what's due today."
+              : selectedList === "myday"
+              ? "Hand-picked tasks for today."
               : selectedList === "upcoming"
               ? "Next 7 days of scheduled tasks."
               : selectedList === "overdue"
               ? "Tasks that missed their due date."
+              : selectedList === "habits"
+              ? "Recurring tasks and streaks."
               : "Every task across your workspace."}
           </p>
         </div>
@@ -533,12 +769,58 @@ export function TaskList() {
         </div>
       ) : null}
 
+      <div className="flex flex-wrap items-center gap-3 text-xs text-stone-500">
+        {reminderStatus === "unsupported" ? (
+          <span>Reminders not supported in this browser.</span>
+        ) : reminderStatus === "granted" ? (
+          <span>Reminders enabled.</span>
+        ) : reminderStatus === "denied" ? (
+          <span>Reminders blocked in browser settings.</span>
+        ) : (
+          <button
+            type="button"
+            onClick={requestReminderPermission}
+            className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold text-stone-600 transition hover:border-stone-300"
+          >
+            Enable reminders
+          </button>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+          Templates
+        </span>
+        {templates.map((template) => (
+          <button
+            key={template.id}
+            type="button"
+            onClick={() => {
+              const newTasks = template.tasks.map((entry) =>
+                createTask(entry.title, entry.category, {
+                  ...entry.overrides,
+                  checklist: entry.checklistItems
+                    ? createChecklistItems(entry.checklistItems)
+                    : [],
+                })
+              );
+              addTasks(newTasks);
+            }}
+            className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold text-stone-600 transition hover:border-stone-300"
+          >
+            {template.label}
+          </button>
+        ))}
+      </div>
+
       <div className="flex flex-wrap gap-2">
         {[
           { id: "inbox", label: "Inbox" },
           { id: "today", label: "Today" },
+          { id: "myday", label: "My Day" },
           { id: "upcoming", label: "Upcoming" },
           { id: "overdue", label: "Overdue" },
+          { id: "habits", label: "Habits" },
           { id: "all", label: "All" },
         ].map((option) => (
           <button
@@ -546,7 +828,14 @@ export function TaskList() {
             type="button"
             onClick={() =>
               setSelectedList(
-                option.id as "inbox" | "today" | "upcoming" | "overdue" | "all"
+                option.id as
+                  | "inbox"
+                  | "today"
+                  | "myday"
+                  | "upcoming"
+                  | "overdue"
+                  | "habits"
+                  | "all"
               )
             }
             className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${

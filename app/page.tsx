@@ -3,6 +3,7 @@
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { BrainDump } from "./components/BrainDump";
+import { FocusTimer } from "./components/FocusTimer";
 import { TaskList, TaskProvider, useTaskStore } from "./components/TaskList";
 import { WeeklyCalendar } from "./components/WeeklyCalendar";
 
@@ -28,6 +29,7 @@ function AppShell() {
             </p>
           </div>
           <BrainDump />
+          <FocusTimer />
           <TaskList />
         </section>
         <section className="w-full lg:w-[60%]">

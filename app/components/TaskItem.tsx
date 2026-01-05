@@ -3,7 +3,16 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { useDrag } from "react-dnd";
-import { Check, Trash2, PencilLine, Save, X, Plus, Minus } from "lucide-react";
+import {
+  Check,
+  Trash2,
+  PencilLine,
+  Save,
+  X,
+  Plus,
+  Minus,
+  CalendarDays,
+} from "lucide-react";
 import { Task, Category, ChecklistItem } from "../lib/types";
 import { useTaskStore } from "./TaskList";
 
@@ -36,6 +45,9 @@ export function TaskItem({
   const safeTags = task.tags ?? [];
   const safeChecklist = task.checklist ?? [];
   const safeRepeat = task.repeat ?? "none";
+  const safeMyDay = task.myDay ?? [];
+  const todayKey = format(new Date(), "yyyy-MM-dd");
+  const isPlannedToday = safeMyDay.includes(todayKey);
   const [isEditing, setIsEditing] = useState(false);
   const [draftTitle, setDraftTitle] = useState(task.title);
   const [draftNotes, setDraftNotes] = useState(task.notes);
@@ -47,6 +59,9 @@ export function TaskItem({
   );
   const [draftDueDate, setDraftDueDate] = useState(
     task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd") : ""
+  );
+  const [draftReminderAt, setDraftReminderAt] = useState(
+    task.reminderAt ? format(new Date(task.reminderAt), "yyyy-MM-dd'T'HH:mm") : ""
   );
   const [draftChecklist, setDraftChecklist] = useState<ChecklistItem[]>(
     safeChecklist
@@ -79,6 +94,9 @@ export function TaskItem({
     const dueDate = draftDueDate
       ? new Date(`${draftDueDate}T00:00:00`).toISOString()
       : null;
+    const reminderAt = draftReminderAt
+      ? new Date(draftReminderAt).toISOString()
+      : null;
     const tags = draftTags
       .split(",")
       .map((tag) => tag.trim())
@@ -91,6 +109,7 @@ export function TaskItem({
       tags,
       repeat: draftRepeat,
       dueDate,
+      reminderAt,
       checklist: draftChecklist,
     });
     setIsEditing(false);
@@ -104,6 +123,9 @@ export function TaskItem({
     setDraftTags((task.tags ?? []).join(", "));
     setDraftRepeat(task.repeat ?? "none");
     setDraftDueDate(task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd") : "");
+    setDraftReminderAt(
+      task.reminderAt ? format(new Date(task.reminderAt), "yyyy-MM-dd'T'HH:mm") : ""
+    );
     setDraftChecklist(task.checklist ?? []);
     setIsEditing(false);
   };
@@ -176,9 +198,24 @@ export function TaskItem({
                 Due {format(new Date(task.dueDate), "MMM d")}
               </span>
             ) : null}
+            {task.reminderAt ? (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                Remind {format(new Date(task.reminderAt), "MMM d h:mm a")}
+              </span>
+            ) : null}
             {safeRepeat !== "none" ? (
               <span className="rounded-full border border-stone-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-stone-600">
                 Repeats {safeRepeat}
+              </span>
+            ) : null}
+            {safeRepeat !== "none" && task.streak > 0 ? (
+              <span className="rounded-full border border-stone-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-stone-600">
+                Streak {task.streak}
+              </span>
+            ) : null}
+            {isPlannedToday ? (
+              <span className="rounded-full bg-stone-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                My Day
               </span>
             ) : null}
           </div>
@@ -207,6 +244,22 @@ export function TaskItem({
               variant === "calendar" ? "justify-start" : "justify-end"
             }`}
           >
+            {variant === "list" ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const nextMyDay = isPlannedToday
+                    ? safeMyDay.filter((date) => date !== todayKey)
+                    : [...safeMyDay, todayKey];
+                  onUpdate?.(task.id, { myDay: nextMyDay });
+                }}
+                className={`rounded-full border border-stone-200 text-stone-600 transition hover:border-stone-300 ${
+                  variant === "calendar" ? "h-7 w-7 p-1.5" : "p-2"
+                }`}
+              >
+                <CalendarDays className="h-4 w-4" />
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => onToggleStatus?.(task.id)}
@@ -280,6 +333,12 @@ export function TaskItem({
               type="date"
               value={draftDueDate}
               onChange={(event) => setDraftDueDate(event.target.value)}
+              className="rounded-lg border border-stone-200 px-3 py-2 text-sm"
+            />
+            <input
+              type="datetime-local"
+              value={draftReminderAt}
+              onChange={(event) => setDraftReminderAt(event.target.value)}
               className="rounded-lg border border-stone-200 px-3 py-2 text-sm"
             />
             <select

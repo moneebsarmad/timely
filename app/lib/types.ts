@@ -4,11 +4,15 @@ export interface Task {
   category: string;
   tags: string[];
   dueDate: string | null;
+  reminderAt: string | null;
   priority: "high" | "medium" | "low" | "none";
   repeat: "none" | "daily" | "weekly" | "monthly" | "yearly";
   status: "todo" | "in-progress" | "done";
   notes: string;
   checklist: ChecklistItem[];
+  myDay: string[];
+  lastCompletedAt: string | null;
+  streak: number;
   createdAt: string;
 }
 
