@@ -37,12 +37,12 @@ function DayCell({
   );
 
   return (
-      <div
-        ref={dropRef}
-        className={`flex min-h-[160px] flex-col rounded-2xl border border-stone-200 bg-white/80 p-2 transition ${
-          isOver ? "border-stone-900 shadow-lg" : "shadow-sm"
-        } ${isToday(date) ? "ring-2 ring-stone-900" : ""}`}
-      >
+    <div
+      ref={dropRef}
+      className={`flex min-h-[150px] flex-col rounded-2xl border border-stone-200 bg-white/80 p-2 transition ${
+        isOver ? "border-stone-900 shadow-lg" : "shadow-sm"
+      } ${isToday(date) ? "ring-2 ring-stone-900" : ""}`}
+    >
       <div className="flex items-center justify-between text-xs text-stone-500">
         <span className="font-semibold text-stone-700">
           {format(date, "EEE")}

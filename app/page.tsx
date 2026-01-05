@@ -20,8 +20,8 @@ function AppShell() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#fff4e0,_#f3efe9_60%,_#efe6da_100%)] text-stone-900">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-5 py-10 lg:flex-row">
-        <section className="flex w-full flex-col gap-6 lg:w-[40%]">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-6 py-10 lg:flex-row">
+        <section className="flex w-full flex-col gap-6 lg:w-[38%]">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight">Timely</h1>
             <p className="text-sm text-stone-600">
@@ -32,7 +32,7 @@ function AppShell() {
           <FocusTimer />
           <TaskList />
         </section>
-        <section className="w-full lg:w-[60%]">
+        <section className="w-full lg:w-[62%]">
           <WeeklyCalendar />
         </section>
       </div>

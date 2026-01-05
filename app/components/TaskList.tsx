@@ -812,7 +812,28 @@ export function TaskList() {
               : "Every task across your workspace."}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {reminderStatus === "unsupported" ? (
+            <span className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold text-stone-500">
+              Reminders unavailable
+            </span>
+          ) : reminderStatus === "granted" ? (
+            <span className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold text-stone-500">
+              Reminders on
+            </span>
+          ) : reminderStatus === "denied" ? (
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+              Reminders blocked
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={requestReminderPermission}
+              className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold text-stone-600 transition hover:border-stone-300"
+            >
+              Enable reminders
+            </button>
+          )}
           <button
             type="button"
             onClick={handleExport}
@@ -849,110 +870,98 @@ export function TaskList() {
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-3 text-xs text-stone-500">
-        {reminderStatus === "unsupported" ? (
-          <span>Reminders not supported in this browser.</span>
-        ) : reminderStatus === "granted" ? (
-          <span>Reminders enabled.</span>
-        ) : reminderStatus === "denied" ? (
-          <span>Reminders blocked in browser settings.</span>
-        ) : (
-          <button
-            type="button"
-            onClick={requestReminderPermission}
-            className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold text-stone-600 transition hover:border-stone-300"
-          >
-            Enable reminders
-          </button>
-        )}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+      <details className="rounded-2xl border border-stone-200 bg-white/80 px-4 py-3 shadow-sm">
+        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-stone-500">
           Templates
-        </span>
-        {templates.map((template) => (
-          <button
-            key={template.id}
-            type="button"
-            onClick={() => {
-              const newTasks = template.tasks.map((entry) =>
-                createTask(entry.title, entry.category, {
-                  ...entry.overrides,
-                  checklist: entry.checklistItems
-                    ? createChecklistItems(entry.checklistItems)
-                    : [],
-                })
-              );
-              addTasks(newTasks);
-            }}
-            className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold text-stone-600 transition hover:border-stone-300"
-          >
-            {template.label}
-          </button>
-        ))}
-      </div>
+        </summary>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {templates.map((template) => (
+            <button
+              key={template.id}
+              type="button"
+              onClick={() => {
+                const newTasks = template.tasks.map((entry) =>
+                  createTask(entry.title, entry.category, {
+                    ...entry.overrides,
+                    checklist: entry.checklistItems
+                      ? createChecklistItems(entry.checklistItems)
+                      : [],
+                  })
+                );
+                addTasks(newTasks);
+              }}
+              className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold text-stone-600 transition hover:border-stone-300"
+            >
+              {template.label}
+            </button>
+          ))}
+        </div>
+      </details>
 
-      <div className="flex flex-wrap gap-2">
-        {[
-          { id: "inbox", label: "Inbox" },
-          { id: "today", label: "Today" },
-          { id: "myday", label: "My Day" },
-          { id: "upcoming", label: "Upcoming" },
-          { id: "overdue", label: "Overdue" },
-          { id: "habits", label: "Habits" },
-          { id: "all", label: "All" },
-        ].map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            onClick={() =>
-              setSelectedList(
-                option.id as
-                  | "inbox"
-                  | "today"
-                  | "myday"
-                  | "upcoming"
-                  | "overdue"
-                  | "habits"
-                  | "all"
-              )
-            }
-            className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-              selectedList === option.id
-                ? "border-stone-900 bg-stone-900 text-white"
-                : "border-stone-200 bg-white text-stone-600 hover:border-stone-300"
-            }`}
-          >
-            {option.label}
-          </button>
-        ))}
+      <div className="rounded-2xl border border-stone-200 bg-white/80 p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: "inbox", label: "Inbox" },
+              { id: "today", label: "Today" },
+              { id: "myday", label: "My Day" },
+              { id: "upcoming", label: "Upcoming" },
+              { id: "overdue", label: "Overdue" },
+              { id: "habits", label: "Habits" },
+              { id: "all", label: "All" },
+            ].map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() =>
+                  setSelectedList(
+                    option.id as
+                      | "inbox"
+                      | "today"
+                      | "myday"
+                      | "upcoming"
+                      | "overdue"
+                      | "habits"
+                      | "all"
+                  )
+                }
+                className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                  selectedList === option.id
+                    ? "border-stone-900 bg-stone-900 text-white"
+                    : "border-stone-200 bg-white text-stone-600 hover:border-stone-300"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search"
+              className="h-9 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none transition focus:border-stone-900 md:w-40"
+            />
+            {searchTerm ? (
+              <button
+                type="button"
+                onClick={() => setSearchTerm("")}
+                className="text-xs font-semibold text-stone-500"
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
+        </div>
+        <div className="mt-3">
+          <CategoryFilter
+            categories={categories}
+            selectedCategory={selectedCategory}
+            onSelect={setSelectedCategory}
+          />
+        </div>
       </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          type="search"
-          value={searchTerm}
-          onChange={(event) => setSearchTerm(event.target.value)}
-          placeholder="Search tasks, notes, or tags"
-          className="h-10 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none transition focus:border-stone-900 md:w-64"
-        />
-        {searchTerm ? (
-          <button
-            type="button"
-            onClick={() => setSearchTerm("")}
-            className="text-xs font-semibold text-stone-500"
-          >
-            Clear
-          </button>
-        ) : null}
-      </div>
-
-      <CategoryFilter
-        categories={categories}
-        selectedCategory={selectedCategory}
-        onSelect={setSelectedCategory}
-      />
 
       {selectedList === "habits" ? (
         <div className="rounded-2xl border border-stone-200 bg-white/80 p-4 shadow-sm">
