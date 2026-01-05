@@ -64,7 +64,7 @@ export function BrainDump() {
         </button>
       </div>
       <p className="mt-2 text-xs text-stone-500">
-        Enter adds a task. Use #category, @tags, >section, remind 3pm, and date words.
+        Enter adds a task. Use #category, @tags, {"\u003e"}section, remind 3pm, and date words.
       </p>
     </form>
   );
