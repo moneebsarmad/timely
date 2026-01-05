@@ -2,11 +2,20 @@ export interface Task {
   id: string;
   title: string;
   category: string;
+  tags: string[];
   dueDate: string | null;
   priority: "high" | "medium" | "low" | "none";
+  repeat: "none" | "daily" | "weekly" | "monthly" | "yearly";
   status: "todo" | "in-progress" | "done";
   notes: string;
+  checklist: ChecklistItem[];
   createdAt: string;
+}
+
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
 }
 
 export interface Category {

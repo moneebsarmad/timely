@@ -52,7 +52,7 @@ export function BrainDump() {
           type="text"
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          placeholder="Capture anything... (#work, #personal)"
+          placeholder="Capture anything... (#work @tag !high tomorrow every week)"
           className="h-12 flex-1 rounded-xl border border-stone-200 bg-white px-4 text-base text-stone-900 shadow-inner outline-none transition focus:border-stone-900"
         />
         <button
@@ -64,7 +64,7 @@ export function BrainDump() {
         </button>
       </div>
       <p className="mt-2 text-xs text-stone-500">
-        Enter adds a task. Ctrl+K focuses, Esc clears.
+        Enter adds a task. Use #category, @tags, !high/!low, and date words.
       </p>
     </form>
   );

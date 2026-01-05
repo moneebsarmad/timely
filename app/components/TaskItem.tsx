@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { format } from "date-fns";
 import { useDrag } from "react-dnd";
-import { Check, Trash2, PencilLine, Save, X } from "lucide-react";
-import { Task, Category } from "../lib/types";
+import { Check, Trash2, PencilLine, Save, X, Plus, Minus } from "lucide-react";
+import { Task, Category, ChecklistItem } from "../lib/types";
 import { useTaskStore } from "./TaskList";
 
 const priorityStyles: Record<Task["priority"], string> = {
@@ -32,11 +33,24 @@ export function TaskItem({
   onUpdate,
 }: TaskItemProps) {
   const { categories } = useTaskStore();
+  const safeTags = task.tags ?? [];
+  const safeChecklist = task.checklist ?? [];
+  const safeRepeat = task.repeat ?? "none";
   const [isEditing, setIsEditing] = useState(false);
   const [draftTitle, setDraftTitle] = useState(task.title);
   const [draftNotes, setDraftNotes] = useState(task.notes);
   const [draftCategory, setDraftCategory] = useState(task.category);
   const [draftPriority, setDraftPriority] = useState(task.priority);
+  const [draftTags, setDraftTags] = useState(safeTags.join(", "));
+  const [draftRepeat, setDraftRepeat] = useState<Task["repeat"]>(
+    task.repeat ?? "none"
+  );
+  const [draftDueDate, setDraftDueDate] = useState(
+    task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd") : ""
+  );
+  const [draftChecklist, setDraftChecklist] = useState<ChecklistItem[]>(
+    safeChecklist
+  );
 
   const isDraggable = variant === "list" && task.dueDate === null;
   const hasActions = Boolean(onDelete || onToggleStatus || onUpdate);
@@ -62,11 +76,22 @@ export function TaskItem({
     if (!onUpdate) {
       return;
     }
+    const dueDate = draftDueDate
+      ? new Date(`${draftDueDate}T00:00:00`).toISOString()
+      : null;
+    const tags = draftTags
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
     onUpdate(task.id, {
       title: draftTitle.trim() || task.title,
       notes: draftNotes,
       category: draftCategory,
       priority: draftPriority,
+      tags,
+      repeat: draftRepeat,
+      dueDate,
+      checklist: draftChecklist,
     });
     setIsEditing(false);
   };
@@ -76,7 +101,35 @@ export function TaskItem({
     setDraftNotes(task.notes);
     setDraftCategory(task.category);
     setDraftPriority(task.priority);
+    setDraftTags((task.tags ?? []).join(", "));
+    setDraftRepeat(task.repeat ?? "none");
+    setDraftDueDate(task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd") : "");
+    setDraftChecklist(task.checklist ?? []);
     setIsEditing(false);
+  };
+
+  const updateChecklistItem = (id: string, updates: Partial<ChecklistItem>) => {
+    setDraftChecklist((current) =>
+      current.map((item) => (item.id === id ? { ...item, ...updates } : item))
+    );
+  };
+
+  const removeChecklistItem = (id: string) => {
+    setDraftChecklist((current) => current.filter((item) => item.id !== id));
+  };
+
+  const addChecklistItem = () => {
+    setDraftChecklist((current) => [
+      ...current,
+      {
+        id:
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `check-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        text: "",
+        done: false,
+      },
+    ]);
   };
 
   return (
@@ -109,7 +162,7 @@ export function TaskItem({
           {task.notes && variant === "list" ? (
             <p className="mt-1 text-xs text-stone-500">{task.notes}</p>
           ) : null}
-          <div className="mt-2 flex items-center gap-2 text-xs text-stone-500">
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-stone-500">
             <span className={`h-2 w-2 rounded-full ${categoryColor}`} />
             <span
               className={
@@ -118,7 +171,35 @@ export function TaskItem({
             >
               {categories.find((category) => category.id === task.category)?.name}
             </span>
+            {task.dueDate ? (
+              <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-stone-600">
+                Due {format(new Date(task.dueDate), "MMM d")}
+              </span>
+            ) : null}
+            {safeRepeat !== "none" ? (
+              <span className="rounded-full border border-stone-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-stone-600">
+                Repeats {safeRepeat}
+              </span>
+            ) : null}
           </div>
+          {variant === "list" && safeTags.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {safeTags.map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-full border border-stone-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-stone-600"
+                >
+                  @{tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {safeChecklist.length > 0 ? (
+            <div className="mt-2 text-[11px] uppercase tracking-wide text-stone-500">
+              {safeChecklist.filter((item) => item.done).length}/
+              {safeChecklist.length} steps
+            </div>
+          ) : null}
         </div>
         {hasActions ? (
           <div
@@ -195,6 +276,81 @@ export function TaskItem({
               <option value="medium">Medium</option>
               <option value="high">High</option>
             </select>
+            <input
+              type="date"
+              value={draftDueDate}
+              onChange={(event) => setDraftDueDate(event.target.value)}
+              className="rounded-lg border border-stone-200 px-3 py-2 text-sm"
+            />
+            <select
+              value={draftRepeat}
+              onChange={(event) =>
+                setDraftRepeat(event.target.value as Task["repeat"])
+              }
+              className="rounded-lg border border-stone-200 px-3 py-2 text-sm"
+            >
+              <option value="none">No repeat</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          </div>
+          <input
+            value={draftTags}
+            onChange={(event) => setDraftTags(event.target.value)}
+            className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm"
+            placeholder="Tags (comma separated)"
+          />
+          <div className="rounded-xl border border-stone-100 bg-stone-50 p-3">
+            <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-stone-500">
+              Checklist
+              <button
+                type="button"
+                onClick={addChecklistItem}
+                className="inline-flex items-center gap-1 rounded-full border border-stone-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-stone-600"
+              >
+                <Plus className="h-3 w-3" />
+                Add step
+              </button>
+            </div>
+            {draftChecklist.length === 0 ? (
+              <div className="text-xs text-stone-400">No steps yet.</div>
+            ) : (
+              <div className="space-y-2">
+                {draftChecklist.map((item) => (
+                  <div key={item.id} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={item.done}
+                      onChange={(event) =>
+                        updateChecklistItem(item.id, {
+                          done: event.target.checked,
+                        })
+                      }
+                      className="h-4 w-4 rounded border-stone-300"
+                    />
+                    <input
+                      value={item.text}
+                      onChange={(event) =>
+                        updateChecklistItem(item.id, {
+                          text: event.target.value,
+                        })
+                      }
+                      className="flex-1 rounded-lg border border-stone-200 px-2 py-1 text-xs"
+                      placeholder="Step details"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeChecklistItem(item.id)}
+                      className="rounded-full border border-stone-200 p-1 text-stone-500"
+                    >
+                      <Minus className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button

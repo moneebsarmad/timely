@@ -1,7 +1,26 @@
 "use client";
 
-import React, { createContext, useContext, useMemo, useRef, useState } from "react";
-import { Task, Category, DEFAULT_CATEGORIES } from "../lib/types";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  addDays,
+  addMonths,
+  addWeeks,
+  addYears,
+  endOfDay,
+  isBefore,
+  isSameDay,
+  isWithinInterval,
+  nextDay,
+  startOfDay,
+} from "date-fns";
+import { Task, Category, ChecklistItem, DEFAULT_CATEGORIES } from "../lib/types";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { TaskItem } from "./TaskItem";
 import { CategoryFilter } from "./CategoryFilter";
@@ -29,6 +48,13 @@ const TaskContext = createContext<TaskContextValue | null>(null);
 
 const normalizeTag = (tag: string) => tag.trim().toLowerCase();
 
+const normalizeTask = (task: Task): Task => ({
+  ...task,
+  tags: Array.isArray(task.tags) ? task.tags : [],
+  repeat: task.repeat ?? "none",
+  checklist: Array.isArray(task.checklist) ? task.checklist : [],
+});
+
 const getCategoryFromInput = (input: string, categories: Category[]) => {
   const matches = Array.from(input.matchAll(/#([a-z0-9-]+)/gi)).map((match) =>
     normalizeTag(match[1] ?? "")
@@ -50,21 +76,109 @@ const getCategoryFromInput = (input: string, categories: Category[]) => {
 const cleanTaskTitle = (input: string) =>
   input
     .replace(/#([a-z0-9-]+)/gi, "")
+    .replace(/@([a-z0-9-]+)/gi, "")
+    .replace(/\b(!high|!med|!medium|!low|p1|p2|p3)\b/gi, "")
+    .replace(/\bevery\s+(day|week|month|year)\b/gi, "")
+    .replace(/\b(daily|weekly|monthly|yearly)\b/gi, "")
+    .replace(/\b(next\s+)?(mon|monday|tue|tues|tuesday|wed|weds|wednesday|thu|thurs|thursday|fri|friday|sat|saturday|sun|sunday)\b/gi, "")
+    .replace(/\b(today|tomorrow)\b/gi, "")
     .replace(/\s+/g, " ")
     .trim();
 
-const createTask = (title: string, category: string): Task => ({
-  id: typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `task-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+const createTask = (
+  title: string,
+  category: string,
+  overrides: Partial<Task> = {}
+): Task => ({
+  id:
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `task-${Date.now()}-${Math.random().toString(16).slice(2)}`,
   title,
   category,
+  tags: [],
   dueDate: null,
   priority: "none",
+  repeat: "none",
   status: "todo",
   notes: "",
+  checklist: [],
   createdAt: new Date().toISOString(),
+  ...overrides,
 });
+
+const extractTags = (input: string) =>
+  Array.from(input.matchAll(/@([a-z0-9-]+)/gi)).map((match) =>
+    normalizeTag(match[1] ?? "")
+  );
+
+const extractPriority = (input: string): Task["priority"] => {
+  const lowered = input.toLowerCase();
+  if (/\b(!high|p1)\b/.test(lowered)) return "high";
+  if (/\b(!med|!medium|p2)\b/.test(lowered)) return "medium";
+  if (/\b(!low|p3)\b/.test(lowered)) return "low";
+  return "none";
+};
+
+const extractRepeat = (input: string): Task["repeat"] => {
+  const lowered = input.toLowerCase();
+  if (/\b(every\s+day|daily)\b/.test(lowered)) return "daily";
+  if (/\b(every\s+week|weekly)\b/.test(lowered)) return "weekly";
+  if (/\b(every\s+month|monthly)\b/.test(lowered)) return "monthly";
+  if (/\b(every\s+year|yearly)\b/.test(lowered)) return "yearly";
+  return "none";
+};
+
+const weekdayIndexes: Record<string, number> = {
+  sun: 0,
+  sunday: 0,
+  mon: 1,
+  monday: 1,
+  tue: 2,
+  tues: 2,
+  tuesday: 2,
+  wed: 3,
+  weds: 3,
+  wednesday: 3,
+  thu: 4,
+  thurs: 4,
+  thursday: 4,
+  fri: 5,
+  friday: 5,
+  sat: 6,
+  saturday: 6,
+};
+
+const extractDueDate = (input: string) => {
+  const lowered = input.toLowerCase();
+  const today = startOfDay(new Date());
+
+  if (/\btoday\b/.test(lowered)) {
+    return today.toISOString();
+  }
+  if (/\btomorrow\b/.test(lowered)) {
+    return startOfDay(addDays(today, 1)).toISOString();
+  }
+
+  const nextMatch = lowered.match(
+    /\bnext\s+(mon|monday|tue|tues|tuesday|wed|weds|wednesday|thu|thurs|thursday|fri|friday|sat|saturday|sun|sunday)\b/
+  );
+  if (nextMatch) {
+    const index = weekdayIndexes[nextMatch[1]] ?? 0;
+    return startOfDay(addDays(nextDay(today, index), 0)).toISOString();
+  }
+
+  const match = lowered.match(
+    /\b(mon|monday|tue|tues|tuesday|wed|weds|wednesday|thu|thurs|thursday|fri|friday|sat|saturday|sun|sunday)\b/
+  );
+  if (match) {
+    const index = weekdayIndexes[match[1]] ?? 0;
+    const candidate = nextDay(addDays(today, -1), index);
+    return startOfDay(candidate).toISOString();
+  }
+
+  return null;
+};
 
 export function TaskProvider({ children }: { children: React.ReactNode }) {
   const [tasks, setTasks, isReady] = useLocalStorage<Task[]>(STORAGE_KEY, []);
@@ -74,6 +188,24 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
 
   const categories = useMemo(() => DEFAULT_CATEGORIES, []);
 
+  useEffect(() => {
+    if (!isReady) {
+      return;
+    }
+    setTasks((current) => {
+      const needsUpdate = current.some(
+        (task) =>
+          !("tags" in task) ||
+          !("repeat" in task) ||
+          !("checklist" in task)
+      );
+      if (!needsUpdate) {
+        return current;
+      }
+      return current.map((task) => normalizeTask(task));
+    });
+  }, [isReady, setTasks]);
+
   const addTask = (input: string) => {
     const title = cleanTaskTitle(input);
     if (!title) {
@@ -81,7 +213,16 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
     }
 
     const category = getCategoryFromInput(input, categories);
-    const newTask = createTask(title, category);
+    const tags = extractTags(input);
+    const priority = extractPriority(input);
+    const repeat = extractRepeat(input);
+    const dueDate = extractDueDate(input);
+    const newTask = createTask(title, category, {
+      tags,
+      priority,
+      repeat,
+      dueDate,
+    });
 
     setTasks((current) => [newTask, ...current]);
   };
@@ -123,16 +264,66 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
   };
 
   const toggleStatus = (id: string) => {
-    setTasks((current) =>
-      current.map((task) =>
-        task.id === id
-          ? {
-              ...task,
-              status: task.status === "done" ? "todo" : "done",
-            }
-          : task
-      )
-    );
+    setTasks((current) => {
+      const nextTasks: Task[] = [];
+
+      for (const task of current) {
+        if (task.id !== id) {
+          nextTasks.push(task);
+          continue;
+        }
+
+        const isCompleting = task.status !== "done";
+        nextTasks.push({
+          ...task,
+          status: isCompleting ? "done" : "todo",
+        });
+
+        if (isCompleting && task.repeat !== "none") {
+          const baseDate = task.dueDate ? new Date(task.dueDate) : new Date();
+          let nextDate = baseDate;
+
+          switch (task.repeat) {
+            case "daily":
+              nextDate = addDays(baseDate, 1);
+              break;
+            case "weekly":
+              nextDate = addWeeks(baseDate, 1);
+              break;
+            case "monthly":
+              nextDate = addMonths(baseDate, 1);
+              break;
+            case "yearly":
+              nextDate = addYears(baseDate, 1);
+              break;
+          }
+
+          const resetChecklist: ChecklistItem[] = task.checklist.map((item) => ({
+            ...item,
+            id:
+              typeof crypto !== "undefined" && "randomUUID" in crypto
+                ? crypto.randomUUID()
+                : `check-${Date.now()}-${Math.random()
+                    .toString(16)
+                    .slice(2)}`,
+            done: false,
+          }));
+
+          nextTasks.unshift(
+            createTask(task.title, task.category, {
+              tags: task.tags,
+              priority: task.priority,
+              repeat: task.repeat,
+              dueDate: startOfDay(nextDate).toISOString(),
+              notes: task.notes,
+              checklist: resetChecklist,
+            })
+          );
+        }
+      }
+
+      return nextTasks;
+    });
   };
 
   const setTaskDueDate = (id: string, dueDate: string | null) => {
@@ -140,7 +331,7 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
   };
 
   const replaceTasks = (nextTasks: Task[]) => {
-    setTasks(nextTasks);
+    setTasks(nextTasks.map((task) => normalizeTask(task)));
   };
 
   const value: TaskContextValue = {
@@ -185,15 +376,61 @@ export function TaskList() {
   } = useTaskStore();
 
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const [selectedList, setSelectedList] = useState<
+    "inbox" | "today" | "upcoming" | "overdue" | "all"
+  >("inbox");
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const today = startOfDay(new Date());
+  const upcomingEnd = endOfDay(addDays(today, 7));
 
   const filteredTasks = tasks.filter((task) => {
-    if (task.dueDate !== null) {
+    const dueDate = task.dueDate ? new Date(task.dueDate) : null;
+    const matchesList = (() => {
+      switch (selectedList) {
+        case "inbox":
+          return dueDate === null;
+        case "today":
+          return dueDate ? isSameDay(dueDate, today) : false;
+        case "upcoming":
+          return dueDate
+            ? isWithinInterval(dueDate, {
+                start: addDays(today, 1),
+                end: upcomingEnd,
+              })
+            : false;
+        case "overdue":
+          return dueDate ? isBefore(dueDate, today) : false;
+        case "all":
+        default:
+          return true;
+      }
+    })();
+
+    if (!matchesList) {
       return false;
     }
-    if (selectedCategory === "all") {
-      return true;
+
+    if (selectedCategory !== "all" && task.category !== selectedCategory) {
+      return false;
     }
-    return task.category === selectedCategory;
+
+    if (searchTerm.trim().length > 0) {
+      const needle = searchTerm.toLowerCase();
+      const taskTags = Array.isArray(task.tags) ? task.tags : [];
+      const haystack = [
+        task.title,
+        task.notes,
+        taskTags.join(" "),
+      ]
+        .join(" ")
+        .toLowerCase();
+      if (!haystack.includes(needle)) {
+        return false;
+      }
+    }
+
+    return true;
   });
 
   const handleExport = () => {
@@ -236,8 +473,28 @@ export function TaskList() {
     <section className="flex h-full flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">Unscheduled</h2>
-          <p className="text-sm text-stone-500">Brain dump tasks live here.</p>
+          <h2 className="text-lg font-semibold">
+            {selectedList === "inbox"
+              ? "Inbox"
+              : selectedList === "today"
+              ? "Today"
+              : selectedList === "upcoming"
+              ? "Upcoming"
+              : selectedList === "overdue"
+              ? "Overdue"
+              : "All tasks"}
+          </h2>
+          <p className="text-sm text-stone-500">
+            {selectedList === "inbox"
+              ? "Brain dump tasks live here."
+              : selectedList === "today"
+              ? "Focus on what's due today."
+              : selectedList === "upcoming"
+              ? "Next 7 days of scheduled tasks."
+              : selectedList === "overdue"
+              ? "Tasks that missed their due date."
+              : "Every task across your workspace."}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -276,6 +533,52 @@ export function TaskList() {
         </div>
       ) : null}
 
+      <div className="flex flex-wrap gap-2">
+        {[
+          { id: "inbox", label: "Inbox" },
+          { id: "today", label: "Today" },
+          { id: "upcoming", label: "Upcoming" },
+          { id: "overdue", label: "Overdue" },
+          { id: "all", label: "All" },
+        ].map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            onClick={() =>
+              setSelectedList(
+                option.id as "inbox" | "today" | "upcoming" | "overdue" | "all"
+              )
+            }
+            className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+              selectedList === option.id
+                ? "border-stone-900 bg-stone-900 text-white"
+                : "border-stone-200 bg-white text-stone-600 hover:border-stone-300"
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="search"
+          value={searchTerm}
+          onChange={(event) => setSearchTerm(event.target.value)}
+          placeholder="Search tasks, notes, or tags"
+          className="h-10 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none transition focus:border-stone-900 md:w-64"
+        />
+        {searchTerm ? (
+          <button
+            type="button"
+            onClick={() => setSearchTerm("")}
+            className="text-xs font-semibold text-stone-500"
+          >
+            Clear
+          </button>
+        ) : null}
+      </div>
+
       <CategoryFilter
         categories={categories}
         selectedCategory={selectedCategory}
@@ -285,7 +588,9 @@ export function TaskList() {
       <div className="flex-1 space-y-3 overflow-y-auto pr-1">
         {filteredTasks.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-stone-200 bg-white/70 p-6 text-sm text-stone-500">
-            No unscheduled tasks yet. Capture thoughts in the brain dump.
+            {selectedList === "inbox"
+              ? "No unscheduled tasks yet. Capture thoughts in the brain dump."
+              : "No tasks match this view yet."}
           </div>
         ) : (
           filteredTasks.map((task) => (
