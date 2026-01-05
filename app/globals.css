@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+:root {
+  --paper: #f3efe8;
+  --ink: #1f1c16;
+  --card: #ffffff;
+}
+
+@theme inline {
+  --color-background: var(--paper);
+  --color-foreground: var(--ink);
+  --font-sans: var(--font-space-grotesk);
+  --font-mono: var(--font-ibm-plex-mono);
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-space-grotesk), sans-serif;
+}
