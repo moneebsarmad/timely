@@ -88,14 +88,16 @@ export function TaskItem({
         variant === "calendar" ? "border-stone-100 bg-white/80" : ""
       }`}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div
+        className={`gap-3 ${variant === "calendar" ? "flex flex-col" : "flex items-start justify-between"}`}
+      >
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <span
               className={`h-2.5 w-2.5 rounded-full ${priorityStyles[task.priority]}`}
             />
             <span
-              className={`text-sm font-semibold ${
+              className={`text-sm font-semibold break-words leading-snug ${
                 task.status === "done" ? "line-through text-stone-400" : "text-stone-900"
               }`}
             >
@@ -111,25 +113,35 @@ export function TaskItem({
           </div>
         </div>
         {hasActions ? (
-          <div className="flex items-center gap-2">
+          <div
+            className={`flex items-center gap-2 ${
+              variant === "calendar" ? "justify-start" : "justify-end"
+            }`}
+          >
             <button
               type="button"
               onClick={() => onToggleStatus?.(task.id)}
-              className="rounded-full border border-stone-200 p-2 text-stone-600 transition hover:border-stone-300"
+              className={`rounded-full border border-stone-200 text-stone-600 transition hover:border-stone-300 ${
+                variant === "calendar" ? "h-7 w-7 p-1.5" : "p-2"
+              }`}
             >
               <Check className="h-4 w-4" />
             </button>
             <button
               type="button"
               onClick={() => setIsEditing((value) => !value)}
-              className="rounded-full border border-stone-200 p-2 text-stone-600 transition hover:border-stone-300"
+              className={`rounded-full border border-stone-200 text-stone-600 transition hover:border-stone-300 ${
+                variant === "calendar" ? "h-7 w-7 p-1.5" : "p-2"
+              }`}
             >
               <PencilLine className="h-4 w-4" />
             </button>
             <button
               type="button"
               onClick={() => onDelete?.(task.id)}
-              className="rounded-full border border-stone-200 p-2 text-stone-600 transition hover:border-stone-300"
+              className={`rounded-full border border-stone-200 text-stone-600 transition hover:border-stone-300 ${
+                variant === "calendar" ? "h-7 w-7 p-1.5" : "p-2"
+              }`}
             >
               <Trash2 className="h-4 w-4" />
             </button>
