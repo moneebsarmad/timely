@@ -39,6 +39,7 @@ export function TaskItem({
   const [draftPriority, setDraftPriority] = useState(task.priority);
 
   const isDraggable = variant === "list" && task.dueDate === null;
+  const hasActions = Boolean(onDelete || onToggleStatus || onUpdate);
 
   const [{ isDragging }, dragRef] = useDrag(
     () => ({
@@ -109,7 +110,7 @@ export function TaskItem({
             <span>{categories.find((category) => category.id === task.category)?.name}</span>
           </div>
         </div>
-        {variant === "list" ? (
+        {hasActions ? (
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -136,7 +137,7 @@ export function TaskItem({
         ) : null}
       </div>
 
-      {variant === "list" && isEditing ? (
+      {isEditing && onUpdate ? (
         <div className="mt-3 space-y-2 border-t border-stone-100 pt-3">
           <input
             value={draftTitle}

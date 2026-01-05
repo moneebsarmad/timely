@@ -12,9 +12,19 @@ type DayCellProps = {
   date: Date;
   tasks: Task[];
   onDropTask: (id: string, date: Date) => void;
+  onDeleteTask: (id: string) => void;
+  onToggleStatus: (id: string) => void;
+  onUpdateTask: (id: string, updates: Partial<Task>) => void;
 };
 
-function DayCell({ date, tasks, onDropTask }: DayCellProps) {
+function DayCell({
+  date,
+  tasks,
+  onDropTask,
+  onDeleteTask,
+  onToggleStatus,
+  onUpdateTask,
+}: DayCellProps) {
   const [{ isOver }, dropRef] = useDrop(
     () => ({
       accept: "TASK",
@@ -46,7 +56,14 @@ function DayCell({ date, tasks, onDropTask }: DayCellProps) {
           </div>
         ) : (
           tasks.map((task) => (
-            <TaskItem key={task.id} task={task} variant="calendar" />
+            <TaskItem
+              key={task.id}
+              task={task}
+              variant="calendar"
+              onDelete={onDeleteTask}
+              onToggleStatus={onToggleStatus}
+              onUpdate={onUpdateTask}
+            />
           ))
         )}
       </div>
@@ -55,7 +72,7 @@ function DayCell({ date, tasks, onDropTask }: DayCellProps) {
 }
 
 export function WeeklyCalendar() {
-  const { tasks, setTaskDueDate } = useTaskStore();
+  const { tasks, setTaskDueDate, deleteTask, toggleStatus, updateTask } = useTaskStore();
   const [weekStart, setWeekStart] = useState(
     startOfWeek(new Date(), { weekStartsOn: 1 })
   );
@@ -129,6 +146,9 @@ export function WeeklyCalendar() {
               date={day}
               tasks={tasksByDay[index] ?? []}
               onDropTask={handleDrop}
+              onDeleteTask={deleteTask}
+              onToggleStatus={toggleStatus}
+              onUpdateTask={updateTask}
             />
           </div>
         ))}
