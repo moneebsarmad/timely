@@ -86,7 +86,7 @@ export function TaskItem({
         isDragging ? "opacity-60" : "opacity-100"
       } ${task.status === "done" ? "opacity-60" : ""} ${
         variant === "calendar"
-          ? "border-stone-100 bg-white/80 px-3 py-2"
+          ? "border-stone-100 bg-white/80 px-2 py-2"
           : "px-4 py-3"
       }`}
     >
