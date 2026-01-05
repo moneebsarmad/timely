@@ -46,6 +46,7 @@ export function TaskItem({
   const safeChecklist = task.checklist ?? [];
   const safeRepeat = task.repeat ?? "none";
   const safeMyDay = task.myDay ?? [];
+  const safeSection = task.section ?? "";
   const todayKey = format(new Date(), "yyyy-MM-dd");
   const isPlannedToday = safeMyDay.includes(todayKey);
   const [isEditing, setIsEditing] = useState(false);
@@ -53,6 +54,7 @@ export function TaskItem({
   const [draftNotes, setDraftNotes] = useState(task.notes);
   const [draftCategory, setDraftCategory] = useState(task.category);
   const [draftPriority, setDraftPriority] = useState(task.priority);
+  const [draftSection, setDraftSection] = useState(safeSection);
   const [draftTags, setDraftTags] = useState(safeTags.join(", "));
   const [draftRepeat, setDraftRepeat] = useState<Task["repeat"]>(
     task.repeat ?? "none"
@@ -105,6 +107,7 @@ export function TaskItem({
       title: draftTitle.trim() || task.title,
       notes: draftNotes,
       category: draftCategory,
+      section: draftSection.trim(),
       priority: draftPriority,
       tags,
       repeat: draftRepeat,
@@ -120,6 +123,7 @@ export function TaskItem({
     setDraftNotes(task.notes);
     setDraftCategory(task.category);
     setDraftPriority(task.priority);
+    setDraftSection(task.section ?? "");
     setDraftTags((task.tags ?? []).join(", "));
     setDraftRepeat(task.repeat ?? "none");
     setDraftDueDate(task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd") : "");
@@ -193,6 +197,11 @@ export function TaskItem({
             >
               {categories.find((category) => category.id === task.category)?.name}
             </span>
+            {safeSection ? (
+              <span className="rounded-full border border-stone-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-stone-600">
+                {safeSection}
+              </span>
+            ) : null}
             {task.dueDate ? (
               <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-stone-600">
                 Due {format(new Date(task.dueDate), "MMM d")}
@@ -317,6 +326,12 @@ export function TaskItem({
                 </option>
               ))}
             </select>
+            <input
+              value={draftSection}
+              onChange={(event) => setDraftSection(event.target.value)}
+              className="rounded-lg border border-stone-200 px-3 py-2 text-sm"
+              placeholder="Section / heading"
+            />
             <select
               value={draftPriority}
               onChange={(event) =>

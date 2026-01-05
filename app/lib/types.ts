@@ -2,6 +2,7 @@ export interface Task {
   id: string;
   title: string;
   category: string;
+  section: string;
   tags: string[];
   dueDate: string | null;
   reminderAt: string | null;
@@ -13,6 +14,7 @@ export interface Task {
   myDay: string[];
   lastCompletedAt: string | null;
   streak: number;
+  completedDates: string[];
   createdAt: string;
 }
 

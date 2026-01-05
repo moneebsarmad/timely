@@ -13,6 +13,7 @@ import {
   addMonths,
   addWeeks,
   addYears,
+  eachDayOfInterval,
   endOfDay,
   differenceInCalendarDays,
   differenceInCalendarMonths,
@@ -23,6 +24,10 @@ import {
   isSameDay,
   isWithinInterval,
   nextDay,
+  setHours,
+  setMinutes,
+  setSeconds,
+  subDays,
   startOfDay,
 } from "date-fns";
 import { Task, Category, ChecklistItem, DEFAULT_CATEGORIES } from "../lib/types";
@@ -65,6 +70,7 @@ const normalizeTag = (tag: string) => tag.trim().toLowerCase();
 
 const normalizeTask = (task: Task): Task => ({
   ...task,
+  section: task.section ?? "",
   tags: Array.isArray(task.tags) ? task.tags : [],
   repeat: task.repeat ?? "none",
   checklist: Array.isArray(task.checklist) ? task.checklist : [],
@@ -72,6 +78,7 @@ const normalizeTask = (task: Task): Task => ({
   myDay: Array.isArray(task.myDay) ? task.myDay : [],
   lastCompletedAt: task.lastCompletedAt ?? null,
   streak: typeof task.streak === "number" ? task.streak : 0,
+  completedDates: Array.isArray(task.completedDates) ? task.completedDates : [],
 });
 
 const getCategoryFromInput = (input: string, categories: Category[]) => {
@@ -101,6 +108,8 @@ const cleanTaskTitle = (input: string) =>
     .replace(/\b(daily|weekly|monthly|yearly)\b/gi, "")
     .replace(/\b(next\s+)?(mon|monday|tue|tues|tuesday|wed|weds|wednesday|thu|thurs|thursday|fri|friday|sat|saturday|sun|sunday)\b/gi, "")
     .replace(/\b(today|tomorrow)\b/gi, "")
+    .replace(/\bremind(?:\s+at)?\s+(today|tomorrow)?\s*[a-z0-9:./-]+\s*(am|pm)?\b/gi, "")
+    .replace(/>\s*[^#@!]+/g, "")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -115,6 +124,7 @@ const createTask = (
       : `task-${Date.now()}-${Math.random().toString(16).slice(2)}`,
   title,
   category,
+  section: "",
   tags: [],
   dueDate: null,
   reminderAt: null,
@@ -126,6 +136,7 @@ const createTask = (
   myDay: [],
   lastCompletedAt: null,
   streak: 0,
+  completedDates: [],
   createdAt: new Date().toISOString(),
   ...overrides,
 });
@@ -160,6 +171,11 @@ const extractRepeat = (input: string): Task["repeat"] => {
   if (/\b(every\s+month|monthly)\b/.test(lowered)) return "monthly";
   if (/\b(every\s+year|yearly)\b/.test(lowered)) return "yearly";
   return "none";
+};
+
+const extractSection = (input: string) => {
+  const match = input.match(/>\s*([^#@!]+)/);
+  return match ? match[1].trim() : "";
 };
 
 const weekdayIndexes: Record<string, number> = {
@@ -208,6 +224,57 @@ const extractDueDate = (input: string) => {
     const index = weekdayIndexes[match[1]] ?? 0;
     const candidate = nextDay(addDays(today, -1), index);
     return startOfDay(candidate).toISOString();
+  }
+
+  return null;
+};
+
+const extractReminderAt = (input: string) => {
+  const lowered = input.toLowerCase();
+  const reminderMatch = lowered.match(
+    /remind(?:\s+at)?\s+(today|tomorrow)?\s*([0-9:./-]+(?:\s*(?:am|pm))?)/i
+  );
+  if (!reminderMatch) {
+    return null;
+  }
+
+  const dateToken = reminderMatch[1];
+  const timeToken = reminderMatch[2]?.trim() ?? "";
+  const baseDate = startOfDay(new Date());
+
+  let date = baseDate;
+  if (dateToken === "tomorrow") {
+    date = addDays(baseDate, 1);
+  }
+
+  const dateMatch = timeToken.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateMatch) {
+    const [_, year, month, day] = dateMatch;
+    return new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      9,
+      0,
+      0
+    ).toISOString();
+  }
+
+  const timeMatch = timeToken.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+  if (timeMatch) {
+    let hours = Number(timeMatch[1]);
+    const minutes = Number(timeMatch[2] ?? 0);
+    const meridiem = timeMatch[3];
+    if (meridiem) {
+      if (meridiem === "pm" && hours < 12) {
+        hours += 12;
+      }
+      if (meridiem === "am" && hours === 12) {
+        hours = 0;
+      }
+    }
+    const withTime = setSeconds(setMinutes(setHours(date, hours), minutes), 0);
+    return withTime.toISOString();
   }
 
   return null;
@@ -311,15 +378,19 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
     }
 
     const category = getCategoryFromInput(input, categories);
+    const section = extractSection(input);
     const tags = extractTags(input);
     const priority = extractPriority(input);
     const repeat = extractRepeat(input);
     const dueDate = extractDueDate(input);
+    const reminderAt = extractReminderAt(input);
     const newTask = createTask(title, category, {
+      section,
       tags,
       priority,
       repeat,
       dueDate,
+      reminderAt,
     });
 
     setTasks((current) => [newTask, ...current]);
@@ -410,15 +481,8 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
             }
           }
         }
-        nextTasks.push({
-          ...task,
-          status: isCompleting ? "done" : "todo",
-          lastCompletedAt: isCompleting ? now.toISOString() : task.lastCompletedAt,
-          streak: isCompleting ? nextStreak : task.streak,
-        });
-
         if (isCompleting && task.repeat !== "none") {
-          const baseDate = task.dueDate ? new Date(task.dueDate) : new Date();
+          const baseDate = task.dueDate ? new Date(task.dueDate) : now;
           let nextDate = baseDate;
 
           switch (task.repeat) {
@@ -436,31 +500,25 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
               break;
           }
 
-          const resetChecklist: ChecklistItem[] = task.checklist.map((item) => ({
-            ...item,
-            id:
-              typeof crypto !== "undefined" && "randomUUID" in crypto
-                ? crypto.randomUUID()
-                : `check-${Date.now()}-${Math.random()
-                    .toString(16)
-                    .slice(2)}`,
-            done: false,
-          }));
+          const todayKey = format(startOfDay(now), "yyyy-MM-dd");
+          const completedDates = new Set(task.completedDates ?? []);
+          completedDates.add(todayKey);
 
-          nextTasks.unshift(
-            createTask(task.title, task.category, {
-              tags: task.tags,
-              priority: task.priority,
-              repeat: task.repeat,
-              dueDate: startOfDay(nextDate).toISOString(),
-              notes: task.notes,
-              checklist: resetChecklist,
-              reminderAt: null,
-              myDay: [],
-              lastCompletedAt: null,
-              streak: task.streak,
-            })
-          );
+          nextTasks.push({
+            ...task,
+            status: "todo",
+            dueDate: startOfDay(nextDate).toISOString(),
+            lastCompletedAt: now.toISOString(),
+            streak: nextStreak,
+            completedDates: Array.from(completedDates),
+          });
+        } else {
+          nextTasks.push({
+            ...task,
+            status: isCompleting ? "done" : "todo",
+            lastCompletedAt: isCompleting ? now.toISOString() : task.lastCompletedAt,
+            streak: isCompleting ? nextStreak : task.streak,
+          });
         }
       }
 
@@ -649,6 +707,7 @@ export function TaskList() {
       const haystack = [
         task.title,
         task.notes,
+        task.section,
         taskTags.join(" "),
       ]
         .join(" ")
@@ -660,6 +719,27 @@ export function TaskList() {
 
     return true;
   });
+
+  const groupedTasks = useMemo(() => {
+    const groups = new Map<string, Task[]>();
+    filteredTasks.forEach((task) => {
+      const section = task.section?.trim() || "Unsectioned";
+      const existing = groups.get(section) ?? [];
+      existing.push(task);
+      groups.set(section, existing);
+    });
+    return Array.from(groups.entries());
+  }, [filteredTasks]);
+
+  const habitDays = useMemo(() => {
+    const end = startOfDay(new Date());
+    const start = subDays(end, 6);
+    return eachDayOfInterval({ start, end }).map((day) => ({
+      key: format(day, "yyyy-MM-dd"),
+      label: format(day, "EEE"),
+      dayNumber: format(day, "d"),
+    }));
+  }, []);
 
   const handleExport = () => {
     const data = JSON.stringify(tasks, null, 2);
@@ -874,6 +954,68 @@ export function TaskList() {
         onSelect={setSelectedCategory}
       />
 
+      {selectedList === "habits" ? (
+        <div className="rounded-2xl border border-stone-200 bg-white/80 p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-600">
+                Habit history
+              </h3>
+              <p className="text-xs text-stone-500">
+                Last 7 days of completions.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-stone-400">
+              {habitDays.map((day) => (
+                <div key={day.key} className="w-7 text-center">
+                  {day.label}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="mt-4 space-y-2">
+            {filteredTasks.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50 p-3 text-xs text-stone-500">
+                No recurring tasks yet.
+              </div>
+            ) : (
+              filteredTasks.map((task) => {
+                const completed = new Set(task.completedDates ?? []);
+                return (
+                  <div
+                    key={task.id}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-stone-100 bg-white px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-stone-800">
+                        {task.title}
+                      </div>
+                      <div className="text-xs text-stone-500">
+                        Streak {task.streak}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-stone-400">
+                      {habitDays.map((day) => (
+                        <div
+                          key={`${task.id}-${day.key}`}
+                          className={`flex h-7 w-7 items-center justify-center rounded-full border text-[10px] ${
+                            completed.has(day.key)
+                              ? "border-stone-900 bg-stone-900 text-white"
+                              : "border-stone-200 text-stone-400"
+                          }`}
+                        >
+                          {day.dayNumber}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex-1 space-y-3 overflow-y-auto pr-1">
         {filteredTasks.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-stone-200 bg-white/70 p-6 text-sm text-stone-500">
@@ -882,15 +1024,25 @@ export function TaskList() {
               : "No tasks match this view yet."}
           </div>
         ) : (
-          filteredTasks.map((task) => (
-            <TaskItem
-              key={task.id}
-              task={task}
-              onDelete={deleteTask}
-              onToggleStatus={toggleStatus}
-              onUpdate={updateTask}
-              variant="list"
-            />
+          groupedTasks.map(([section, tasksInSection]) => (
+            <div key={section} className="space-y-3">
+              <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-stone-500">
+                <span>{section}</span>
+                <span>{tasksInSection.length} tasks</span>
+              </div>
+              <div className="space-y-3">
+                {tasksInSection.map((task) => (
+                  <TaskItem
+                    key={task.id}
+                    task={task}
+                    onDelete={deleteTask}
+                    onToggleStatus={toggleStatus}
+                    onUpdate={updateTask}
+                    variant="list"
+                  />
+                ))}
+              </div>
+            </div>
           ))
         )}
       </div>
