@@ -778,8 +778,8 @@ export function TaskList() {
   };
 
   return (
-    <section className="flex h-full flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <section className="flex flex-col gap-4">
+      <div className="panel fade-up flex flex-wrap items-center justify-between gap-3 p-4">
         <div>
           <h2 className="text-lg font-semibold">
             {selectedList === "inbox"
@@ -814,11 +814,11 @@ export function TaskList() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {reminderStatus === "unsupported" ? (
-            <span className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold text-stone-500">
+            <span className="rounded-full border border-stone-200 bg-white/80 px-3 py-1 text-xs font-semibold text-stone-500">
               Reminders unavailable
             </span>
           ) : reminderStatus === "granted" ? (
-            <span className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold text-stone-500">
+            <span className="rounded-full border border-stone-200 bg-white/80 px-3 py-1 text-xs font-semibold text-stone-500">
               Reminders on
             </span>
           ) : reminderStatus === "denied" ? (
@@ -829,7 +829,7 @@ export function TaskList() {
             <button
               type="button"
               onClick={requestReminderPermission}
-              className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold text-stone-600 transition hover:border-stone-300"
+              className="rounded-full border border-stone-200 bg-white/80 px-3 py-1 text-xs font-semibold text-stone-600 transition hover:border-stone-300"
             >
               Enable reminders
             </button>
@@ -837,12 +837,12 @@ export function TaskList() {
           <button
             type="button"
             onClick={handleExport}
-            className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold text-stone-700 transition hover:border-stone-300"
+            className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white/80 px-3 py-1 text-xs font-semibold text-stone-700 transition hover:border-stone-300"
           >
             <Download className="h-4 w-4" />
             Export
           </button>
-          <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold text-stone-700 transition hover:border-stone-300">
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-stone-200 bg-white/80 px-3 py-1 text-xs font-semibold text-stone-700 transition hover:border-stone-300">
             <Upload className="h-4 w-4" />
             Import
             <input
@@ -857,7 +857,7 @@ export function TaskList() {
       </div>
 
       {recentlyDeleted ? (
-        <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        <div className="panel-muted flex items-center justify-between rounded-xl border border-amber-200 px-3 py-2 text-xs text-amber-900">
           <span>Task deleted.</span>
           <button
             type="button"
@@ -870,7 +870,7 @@ export function TaskList() {
         </div>
       ) : null}
 
-      <details className="rounded-2xl border border-stone-200 bg-white/80 px-4 py-3 shadow-sm">
+      <details className="panel fade-up px-4 py-3">
         <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-stone-500">
           Templates
         </summary>
@@ -898,7 +898,7 @@ export function TaskList() {
         </div>
       </details>
 
-      <div className="rounded-2xl border border-stone-200 bg-white/80 p-4 shadow-sm">
+      <div className="panel fade-up p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">
             {[
@@ -964,7 +964,7 @@ export function TaskList() {
       </div>
 
       {selectedList === "habits" ? (
-        <div className="rounded-2xl border border-stone-200 bg-white/80 p-4 shadow-sm">
+        <div className="panel fade-up p-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-600">
@@ -1027,7 +1027,7 @@ export function TaskList() {
 
       <div className="flex-1 space-y-3 overflow-y-auto pr-1">
         {filteredTasks.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-stone-200 bg-white/70 p-6 text-sm text-stone-500">
+          <div className="panel-muted rounded-2xl border border-dashed border-stone-200 p-6 text-sm text-stone-500">
             {selectedList === "inbox"
               ? "No unscheduled tasks yet. Capture thoughts in the brain dump."
               : "No tasks match this view yet."}

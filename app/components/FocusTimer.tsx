@@ -49,7 +49,7 @@ export function FocusTimer() {
   };
 
   return (
-    <section className="rounded-2xl border border-stone-200 bg-white/80 p-4 shadow-sm">
+    <section className="panel fade-up p-5">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold">Focus timer</h2>
@@ -57,7 +57,7 @@ export function FocusTimer() {
             {mode === "focus" ? "Deep work session" : "Recovery break"}
           </p>
         </div>
-        <div className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-stone-600">
+        <div className="rounded-full border border-stone-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-stone-600">
           {mode}
         </div>
       </div>
@@ -70,7 +70,7 @@ export function FocusTimer() {
           <button
             type="button"
             onClick={() => setIsRunning((value) => !value)}
-            className="inline-flex h-10 items-center gap-2 rounded-full bg-stone-900 px-4 text-xs font-semibold text-white"
+            className="inline-flex h-10 items-center gap-2 rounded-full bg-stone-900 px-4 text-xs font-semibold text-white shadow-sm"
           >
             {isRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
             {isRunning ? "Pause" : "Start"}
@@ -78,7 +78,7 @@ export function FocusTimer() {
           <button
             type="button"
             onClick={handleReset}
-            className="inline-flex h-10 items-center gap-2 rounded-full border border-stone-200 px-3 text-xs font-semibold text-stone-600"
+            className="inline-flex h-10 items-center gap-2 rounded-full border border-stone-200 bg-white/80 px-3 text-xs font-semibold text-stone-600"
           >
             <RotateCcw className="h-4 w-4" />
             Reset

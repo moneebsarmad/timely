@@ -39,10 +39,7 @@ export function BrainDump() {
   }, []);
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="rounded-2xl border border-stone-200 bg-white/80 p-4 shadow-sm"
-    >
+    <form onSubmit={handleSubmit} className="panel fade-up p-5">
       <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-500">
         Brain dump
       </label>
@@ -53,7 +50,7 @@ export function BrainDump() {
           value={value}
           onChange={(event) => setValue(event.target.value)}
           placeholder="Capture anything... (#work @tag >Section !high tomorrow remind 3pm)"
-          className="h-12 flex-1 rounded-xl border border-stone-200 bg-white px-4 text-base text-stone-900 shadow-inner outline-none transition focus:border-stone-900"
+          className="h-12 flex-1 rounded-xl border border-stone-200 bg-white/90 px-4 text-base text-stone-900 shadow-inner outline-none transition focus:border-amber-400"
         />
         <button
           type="submit"

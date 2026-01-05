@@ -39,18 +39,18 @@ function DayCell({
   return (
     <div
       ref={dropRef}
-      className={`flex-1 rounded-2xl border border-stone-200 bg-white/80 px-3 py-2 transition ${
+      className={`flex min-h-[72px] flex-1 flex-wrap items-start gap-3 rounded-2xl border border-dashed border-stone-200 bg-white/70 px-3 py-2 transition ${
         isOver ? "border-stone-900 shadow-lg" : "shadow-sm"
-      } ${isToday(date) ? "ring-2 ring-stone-900" : ""}`}
+      }`}
     >
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-1 flex-wrap items-start gap-2">
         {tasks.length === 0 ? (
           <span className="rounded-full border border-dashed border-stone-200 bg-stone-50 px-3 py-1 text-xs text-stone-400">
             Drop here
           </span>
         ) : (
           tasks.map((task) => (
-            <div key={task.id} className="min-w-[140px]">
+            <div key={task.id} className="min-w-[220px] max-w-[280px] flex-1">
               <TaskItem
                 task={task}
                 variant="calendar"
@@ -90,8 +90,8 @@ export function WeeklyCalendar() {
   };
 
   return (
-    <section className="flex h-full flex-col gap-4">
-      <div className="flex items-center justify-between">
+    <section className="panel fade-up flex flex-col gap-4 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Weekly plan</h2>
           <p className="text-sm text-stone-500">
@@ -126,10 +126,15 @@ export function WeeklyCalendar() {
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-3">
+      <div className="flex flex-col gap-3">
         {weekDays.map((day, index) => (
-          <div key={day.toISOString()} className="flex items-center gap-3">
-            <div className="w-16 text-xs text-stone-600">
+          <div
+            key={day.toISOString()}
+            className={`strip flex flex-wrap items-start gap-3 px-4 py-3 ${
+              isToday(day) ? "ring-2 ring-stone-900" : ""
+            }`}
+          >
+            <div className="w-20 text-xs text-stone-600">
               <div className="font-semibold">{format(day, "EEE")}</div>
               <div className="text-[11px] text-stone-400">{format(day, "d")}</div>
             </div>
