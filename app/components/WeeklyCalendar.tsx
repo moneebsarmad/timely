@@ -39,31 +39,26 @@ function DayCell({
   return (
     <div
       ref={dropRef}
-      className={`flex min-h-[150px] flex-col rounded-2xl border border-stone-200 bg-white/80 p-2 transition ${
+      className={`flex-1 rounded-2xl border border-stone-200 bg-white/80 px-3 py-2 transition ${
         isOver ? "border-stone-900 shadow-lg" : "shadow-sm"
       } ${isToday(date) ? "ring-2 ring-stone-900" : ""}`}
     >
-      <div className="flex items-center justify-between text-xs text-stone-500">
-        <span className="font-semibold text-stone-700">
-          {format(date, "EEE")}
-        </span>
-        <span>{format(date, "d")}</span>
-      </div>
-      <div className="mt-2 space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
         {tasks.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50 p-2 text-xs text-stone-400">
+          <span className="rounded-full border border-dashed border-stone-200 bg-stone-50 px-3 py-1 text-xs text-stone-400">
             Drop here
-          </div>
+          </span>
         ) : (
           tasks.map((task) => (
-            <TaskItem
-              key={task.id}
-              task={task}
-              variant="calendar"
-              onDelete={onDeleteTask}
-              onToggleStatus={onToggleStatus}
-              onUpdate={onUpdateTask}
-            />
+            <div key={task.id} className="min-w-[140px]">
+              <TaskItem
+                task={task}
+                variant="calendar"
+                onDelete={onDeleteTask}
+                onToggleStatus={onToggleStatus}
+                onUpdate={onUpdateTask}
+              />
+            </div>
           ))
         )}
       </div>
@@ -131,10 +126,14 @@ export function WeeklyCalendar() {
         </div>
       </div>
 
-      <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
+      <div className="flex flex-1 flex-col gap-3">
         {weekDays.map((day, index) => (
-          <div key={day.toISOString()} className="flex flex-col gap-2">
-            <div className="flex items-center justify-between text-[11px] text-stone-500">
+          <div key={day.toISOString()} className="flex items-center gap-3">
+            <div className="w-16 text-xs text-stone-600">
+              <div className="font-semibold">{format(day, "EEE")}</div>
+              <div className="text-[11px] text-stone-400">{format(day, "d")}</div>
+            </div>
+            <div className="flex items-center gap-2 text-[11px] text-stone-500">
               <span className="uppercase tracking-wide">
                 {tasksByDay[index]?.length ?? 0} tasks
               </span>
