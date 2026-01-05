@@ -82,10 +82,12 @@ export function TaskItem({
   return (
     <div
       ref={dragRef}
-      className={`rounded-2xl border border-stone-200 bg-white px-4 py-3 shadow-sm transition ${
+      className={`rounded-2xl border border-stone-200 bg-white shadow-sm transition ${
         isDragging ? "opacity-60" : "opacity-100"
       } ${task.status === "done" ? "opacity-60" : ""} ${
-        variant === "calendar" ? "border-stone-100 bg-white/80" : ""
+        variant === "calendar"
+          ? "border-stone-100 bg-white/80 px-3 py-2"
+          : "px-4 py-3"
       }`}
     >
       <div
@@ -97,7 +99,7 @@ export function TaskItem({
               className={`h-2.5 w-2.5 rounded-full ${priorityStyles[task.priority]}`}
             />
             <span
-              className={`text-sm font-semibold break-words leading-snug ${
+              className={`min-w-0 flex-1 text-sm font-semibold break-words leading-snug ${
                 task.status === "done" ? "line-through text-stone-400" : "text-stone-900"
               }`}
             >
@@ -109,7 +111,13 @@ export function TaskItem({
           ) : null}
           <div className="mt-2 flex items-center gap-2 text-xs text-stone-500">
             <span className={`h-2 w-2 rounded-full ${categoryColor}`} />
-            <span>{categories.find((category) => category.id === task.category)?.name}</span>
+            <span
+              className={
+                variant === "calendar" ? "text-[11px] uppercase tracking-wide" : ""
+              }
+            >
+              {categories.find((category) => category.id === task.category)?.name}
+            </span>
           </div>
         </div>
         {hasActions ? (

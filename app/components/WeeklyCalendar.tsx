@@ -39,7 +39,7 @@ function DayCell({
   return (
     <div
       ref={dropRef}
-      className={`flex flex-col rounded-2xl border border-stone-200 bg-white/80 p-3 transition ${
+      className={`flex min-h-[180px] flex-col rounded-2xl border border-stone-200 bg-white/80 p-3 transition ${
         isOver ? "border-stone-900 shadow-lg" : "shadow-sm"
       } ${isToday(date) ? "ring-2 ring-stone-900" : ""}`}
     >
@@ -131,27 +131,29 @@ export function WeeklyCalendar() {
         </div>
       </div>
 
-      <div className="grid flex-1 grid-cols-1 gap-3 lg:grid-cols-7">
-        {weekDays.map((day, index) => (
-          <div key={day.toISOString()} className="flex flex-col gap-2">
-            <div className="flex items-center justify-between text-xs text-stone-500">
-              <span>{tasksByDay[index]?.length ?? 0} tasks</span>
-              {isToday(day) ? (
-                <span className="rounded-full bg-stone-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                  Today
-                </span>
-              ) : null}
+      <div className="flex-1 overflow-x-auto pb-2">
+        <div className="grid min-w-[1050px] grid-flow-col auto-cols-[minmax(150px,1fr)] gap-3">
+          {weekDays.map((day, index) => (
+            <div key={day.toISOString()} className="flex flex-col gap-2">
+              <div className="flex items-center justify-between text-xs text-stone-500">
+                <span>{tasksByDay[index]?.length ?? 0} tasks</span>
+                {isToday(day) ? (
+                  <span className="rounded-full bg-stone-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                    Today
+                  </span>
+                ) : null}
+              </div>
+              <DayCell
+                date={day}
+                tasks={tasksByDay[index] ?? []}
+                onDropTask={handleDrop}
+                onDeleteTask={deleteTask}
+                onToggleStatus={toggleStatus}
+                onUpdateTask={updateTask}
+              />
             </div>
-            <DayCell
-              date={day}
-              tasks={tasksByDay[index] ?? []}
-              onDropTask={handleDrop}
-              onDeleteTask={deleteTask}
-              onToggleStatus={toggleStatus}
-              onUpdateTask={updateTask}
-            />
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </section>
   );
