@@ -5,6 +5,8 @@ export interface Task {
   section: string;
   tags: string[];
   dueDate: string | null;
+  snoozedUntil: string | null;
+  bucket: "inbox" | "someday";
   reminderAt: string | null;
   priority: "high" | "medium" | "low" | "none";
   repeat: "none" | "daily" | "weekly" | "monthly" | "yearly";

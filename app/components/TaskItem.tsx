@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { format } from "date-fns";
+import { addDays, format, startOfDay } from "date-fns";
 import { useDrag } from "react-dnd";
 import {
   Check,
@@ -12,6 +12,8 @@ import {
   Plus,
   Minus,
   CalendarDays,
+  Archive,
+  Clock,
 } from "lucide-react";
 import { Task, Category, ChecklistItem } from "../lib/types";
 import { useTaskStore } from "./TaskList";
@@ -59,8 +61,14 @@ export function TaskItem({
   const [draftRepeat, setDraftRepeat] = useState<Task["repeat"]>(
     task.repeat ?? "none"
   );
+  const [draftBucket, setDraftBucket] = useState<Task["bucket"]>(
+    task.bucket ?? "inbox"
+  );
   const [draftDueDate, setDraftDueDate] = useState(
     task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd") : ""
+  );
+  const [draftSnoozedUntil, setDraftSnoozedUntil] = useState(
+    task.snoozedUntil ? format(new Date(task.snoozedUntil), "yyyy-MM-dd") : ""
   );
   const [draftReminderAt, setDraftReminderAt] = useState(
     task.reminderAt ? format(new Date(task.reminderAt), "yyyy-MM-dd'T'HH:mm") : ""
@@ -99,6 +107,9 @@ export function TaskItem({
     const reminderAt = draftReminderAt
       ? new Date(draftReminderAt).toISOString()
       : null;
+    const snoozedUntil = draftSnoozedUntil
+      ? new Date(`${draftSnoozedUntil}T00:00:00`).toISOString()
+      : null;
     const tags = draftTags
       .split(",")
       .map((tag) => tag.trim())
@@ -112,6 +123,8 @@ export function TaskItem({
       tags,
       repeat: draftRepeat,
       dueDate,
+      snoozedUntil,
+      bucket: draftBucket,
       reminderAt,
       checklist: draftChecklist,
     });
@@ -126,7 +139,11 @@ export function TaskItem({
     setDraftSection(task.section ?? "");
     setDraftTags((task.tags ?? []).join(", "));
     setDraftRepeat(task.repeat ?? "none");
+    setDraftBucket(task.bucket ?? "inbox");
     setDraftDueDate(task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd") : "");
+    setDraftSnoozedUntil(
+      task.snoozedUntil ? format(new Date(task.snoozedUntil), "yyyy-MM-dd") : ""
+    );
     setDraftReminderAt(
       task.reminderAt ? format(new Date(task.reminderAt), "yyyy-MM-dd'T'HH:mm") : ""
     );
@@ -197,6 +214,11 @@ export function TaskItem({
             >
               {categories.find((category) => category.id === task.category)?.name}
             </span>
+            {task.bucket === "someday" ? (
+              <span className="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                Someday
+              </span>
+            ) : null}
             {safeSection ? (
               <span className="rounded-full border border-stone-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-stone-600">
                 {safeSection}
@@ -205,6 +227,11 @@ export function TaskItem({
             {task.dueDate ? (
               <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-stone-600">
                 Due {format(new Date(task.dueDate), "MMM d")}
+              </span>
+            ) : null}
+            {task.snoozedUntil && new Date(task.snoozedUntil) > new Date() ? (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                Snoozed {format(new Date(task.snoozedUntil), "MMM d")}
               </span>
             ) : null}
             {task.reminderAt ? (
@@ -267,6 +294,32 @@ export function TaskItem({
                 }`}
               >
                 <CalendarDays className="h-4 w-4" />
+              </button>
+            ) : null}
+            {variant === "list" ? (
+              <button
+                type="button"
+                title="Snooze until tomorrow"
+                onClick={() => {
+                  const snoozedUntil = addDays(startOfDay(new Date()), 1).toISOString();
+                  onUpdate?.(task.id, { snoozedUntil });
+                }}
+                className="rounded-full border border-stone-200 p-2 text-stone-600 transition hover:border-stone-300"
+              >
+                <Clock className="h-4 w-4" />
+              </button>
+            ) : null}
+            {variant === "list" ? (
+              <button
+                type="button"
+                title="Move to Someday"
+                onClick={() => {
+                  const nextBucket = task.bucket === "someday" ? "inbox" : "someday";
+                  onUpdate?.(task.id, { bucket: nextBucket, dueDate: null });
+                }}
+                className="rounded-full border border-stone-200 p-2 text-stone-600 transition hover:border-stone-300"
+              >
+                <Archive className="h-4 w-4" />
               </button>
             ) : null}
             <button
@@ -351,11 +404,28 @@ export function TaskItem({
               className="rounded-lg border border-stone-200 px-3 py-2 text-sm"
             />
             <input
+              type="date"
+              value={draftSnoozedUntil}
+              onChange={(event) => setDraftSnoozedUntil(event.target.value)}
+              className="rounded-lg border border-stone-200 px-3 py-2 text-sm"
+              placeholder="Snooze until"
+            />
+            <input
               type="datetime-local"
               value={draftReminderAt}
               onChange={(event) => setDraftReminderAt(event.target.value)}
               className="rounded-lg border border-stone-200 px-3 py-2 text-sm"
             />
+            <select
+              value={draftBucket}
+              onChange={(event) =>
+                setDraftBucket(event.target.value as Task["bucket"])
+              }
+              className="rounded-lg border border-stone-200 px-3 py-2 text-sm"
+            >
+              <option value="inbox">Inbox</option>
+              <option value="someday">Someday</option>
+            </select>
             <select
               value={draftRepeat}
               onChange={(event) =>

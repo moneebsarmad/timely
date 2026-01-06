@@ -79,9 +79,15 @@ export function WeeklyCalendar() {
 
   const tasksByDay = useMemo(() => {
     return weekDays.map((day) =>
-      tasks.filter((task) =>
-        task.dueDate ? isSameDay(new Date(task.dueDate), day) : false
-      )
+      tasks.filter((task) => {
+        if (task.bucket === "someday") {
+          return false;
+        }
+        if (task.snoozedUntil && new Date(task.snoozedUntil) > new Date()) {
+          return false;
+        }
+        return task.dueDate ? isSameDay(new Date(task.dueDate), day) : false;
+      })
     );
   }, [tasks, weekDays]);
 

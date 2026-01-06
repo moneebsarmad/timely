@@ -15,6 +15,7 @@ import {
   addYears,
   eachDayOfInterval,
   endOfDay,
+  endOfWeek,
   differenceInCalendarDays,
   differenceInCalendarMonths,
   differenceInCalendarWeeks,
@@ -29,6 +30,7 @@ import {
   setSeconds,
   subDays,
   startOfDay,
+  startOfWeek,
 } from "date-fns";
 import { Task, Category, ChecklistItem, DEFAULT_CATEGORIES } from "../lib/types";
 import { useLocalStorage } from "../hooks/useLocalStorage";
@@ -72,6 +74,8 @@ const normalizeTask = (task: Task): Task => ({
   ...task,
   section: task.section ?? "",
   tags: Array.isArray(task.tags) ? task.tags : [],
+  snoozedUntil: task.snoozedUntil ?? null,
+  bucket: task.bucket ?? "inbox",
   repeat: task.repeat ?? "none",
   checklist: Array.isArray(task.checklist) ? task.checklist : [],
   reminderAt: task.reminderAt ?? null,
@@ -127,6 +131,8 @@ const createTask = (
   section: "",
   tags: [],
   dueDate: null,
+  snoozedUntil: null,
+  bucket: "inbox",
   reminderAt: null,
   priority: "none",
   repeat: "none",
@@ -583,9 +589,24 @@ export function TaskList() {
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [selectedList, setSelectedList] = useState<
-    "inbox" | "today" | "myday" | "upcoming" | "overdue" | "habits" | "all"
+    | "inbox"
+    | "today"
+    | "myday"
+    | "upcoming"
+    | "overdue"
+    | "habits"
+    | "someday"
+    | "all"
   >("inbox");
   const [searchTerm, setSearchTerm] = useState("");
+  const [reviewState, setReviewState] = useLocalStorage<{
+    morning: string | null;
+    evening: string | null;
+  }>("timely_review_state", { morning: null, evening: null });
+  const [focusLog] = useLocalStorage<Record<string, number>>(
+    "timely_focus_log",
+    {}
+  );
 
   const templates = useMemo(
     () => [
@@ -662,16 +683,144 @@ export function TaskList() {
     []
   );
 
-  const today = startOfDay(new Date());
+  const now = new Date();
+  const today = startOfDay(now);
   const todayKey = format(today, "yyyy-MM-dd");
   const upcomingEnd = endOfDay(addDays(today, 7));
+  const weekStart = startOfWeek(today, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
+  const hour = now.getHours();
+  const reviewPeriod =
+    hour >= 5 && hour < 12 ? "morning" : hour >= 17 && hour < 22 ? "evening" : null;
+
+  const activeTasks = tasks.filter((task) => {
+    if (task.bucket === "someday") {
+      return false;
+    }
+    if (task.snoozedUntil && isBefore(now, new Date(task.snoozedUntil))) {
+      return false;
+    }
+    return true;
+  });
+
+  const overdueTasks = activeTasks.filter((task) => {
+    if (!task.dueDate || task.status === "done") {
+      return false;
+    }
+    return isBefore(new Date(task.dueDate), today);
+  });
+
+  const myDayTasks = activeTasks.filter((task) =>
+    (task.myDay ?? []).includes(todayKey)
+  );
+
+  const completedTodayCount = tasks.filter((task) => {
+    if (!task.lastCompletedAt) {
+      return false;
+    }
+    return isSameDay(new Date(task.lastCompletedAt), today);
+  }).length;
+
+  const suggestionItems = useMemo(() => {
+    const items: { task: Task; reason: string }[] = [];
+    const seen = new Set<string>();
+    const addItem = (task: Task, reason: string) => {
+      if (task.status === "done" || seen.has(task.id)) {
+        return;
+      }
+      items.push({ task, reason });
+      seen.add(task.id);
+    };
+
+    overdueTasks.forEach((task) => addItem(task, "Overdue"));
+    activeTasks
+      .filter((task) => task.priority === "high" && !task.dueDate)
+      .forEach((task) => addItem(task, "High priority"));
+    activeTasks
+      .filter((task) =>
+        (task.tags ?? []).some((tag) =>
+          ["next", "important", "focus"].includes(tag.toLowerCase())
+        )
+      )
+      .forEach((task) => addItem(task, "Tagged"));
+    activeTasks
+      .filter(
+        (task) =>
+          task.repeat !== "none" &&
+          !(task.completedDates ?? []).includes(todayKey)
+      )
+      .forEach((task) => addItem(task, "Habit check-in"));
+
+    return items.slice(0, 5);
+  }, [activeTasks, overdueTasks, todayKey]);
+
+  const weeklyStats = useMemo(() => {
+    const completedThisWeek = tasks.filter((task) => {
+      if (!task.lastCompletedAt) {
+        return false;
+      }
+      return isWithinInterval(new Date(task.lastCompletedAt), {
+        start: weekStart,
+        end: weekEnd,
+      });
+    }).length;
+
+    const habitTasks = tasks.filter((task) => task.repeat !== "none");
+    const bestStreak = habitTasks.reduce(
+      (max, task) => Math.max(max, task.streak ?? 0),
+      0
+    );
+    const activeStreaks = habitTasks.filter((task) => (task.streak ?? 0) > 0)
+      .length;
+
+    const focusMinutesWeek = eachDayOfInterval({
+      start: weekStart,
+      end: weekEnd,
+    }).reduce((sum, day) => {
+      const key = format(day, "yyyy-MM-dd");
+      return sum + (focusLog[key] ?? 0);
+    }, 0);
+
+    return {
+      completedThisWeek,
+      bestStreak,
+      activeStreaks,
+      focusMinutesWeek,
+      focusAverage: Math.round(focusMinutesWeek / 7),
+    };
+  }, [focusLog, tasks, weekEnd, weekStart]);
+
+  const shouldShowReview =
+    reviewPeriod !== null && reviewState[reviewPeriod] !== todayKey;
+
+  const handleDismissReview = () => {
+    if (!reviewPeriod) {
+      return;
+    }
+    setReviewState((current) => ({ ...current, [reviewPeriod]: todayKey }));
+  };
+
+  const handleAddOverdueToMyDay = () => {
+    const candidates = overdueTasks.filter(
+      (task) => !(task.myDay ?? []).includes(todayKey)
+    );
+    candidates.slice(0, 3).forEach((task) => {
+      const nextMyDay = [...(task.myDay ?? []), todayKey];
+      updateTask(task.id, { myDay: nextMyDay });
+    });
+    setSelectedList("myday");
+  };
 
   const filteredTasks = tasks.filter((task) => {
     const dueDate = task.dueDate ? new Date(task.dueDate) : null;
+    const snoozedUntil = task.snoozedUntil ? new Date(task.snoozedUntil) : null;
+    if (snoozedUntil && isBefore(now, snoozedUntil)) {
+      return false;
+    }
     const matchesList = (() => {
       switch (selectedList) {
         case "inbox":
-          return dueDate === null;
+          return dueDate === null && task.bucket !== "someday";
         case "today":
           return dueDate ? isSameDay(dueDate, today) : false;
         case "myday":
@@ -687,6 +836,8 @@ export function TaskList() {
           return dueDate ? isBefore(dueDate, today) && task.status !== "done" : false;
         case "habits":
           return task.repeat !== "none";
+        case "someday":
+          return task.bucket === "someday";
         case "all":
         default:
           return true;
@@ -694,6 +845,14 @@ export function TaskList() {
     })();
 
     if (!matchesList) {
+      return false;
+    }
+
+    if (
+      task.bucket === "someday" &&
+      selectedList !== "someday" &&
+      selectedList !== "all"
+    ) {
       return false;
     }
 
@@ -794,6 +953,8 @@ export function TaskList() {
               ? "Overdue"
               : selectedList === "habits"
               ? "Habits"
+              : selectedList === "someday"
+              ? "Someday"
               : "All tasks"}
           </h2>
           <p className="text-sm text-stone-500">
@@ -809,6 +970,8 @@ export function TaskList() {
               ? "Tasks that missed their due date."
               : selectedList === "habits"
               ? "Recurring tasks and streaks."
+              : selectedList === "someday"
+              ? "Parked tasks waiting for the right time."
               : "Every task across your workspace."}
           </p>
         </div>
@@ -859,6 +1022,146 @@ export function TaskList() {
             </label>
           </div>
         </details>
+      </div>
+
+      {shouldShowReview ? (
+        <div className="panel fade-up p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-600">
+                {reviewPeriod === "morning" ? "Morning review" : "Evening review"}
+              </h3>
+              <p className="text-sm text-stone-600">
+                Overdue {overdueTasks.length} · My Day {myDayTasks.length}
+                {reviewPeriod === "evening"
+                  ? ` · Completed today ${completedTodayCount}`
+                  : ""}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleDismissReview}
+              className="rounded-full border border-stone-200 bg-white/80 px-3 py-1 text-xs font-semibold text-stone-600 transition hover:border-stone-300"
+            >
+              Dismiss
+            </button>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleAddOverdueToMyDay}
+              className="rounded-full bg-stone-900 px-3 py-1 text-xs font-semibold text-white"
+            >
+              Pull overdue into My Day
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedList("myday")}
+              className="rounded-full border border-stone-200 bg-white/80 px-3 py-1 text-xs font-semibold text-stone-600 transition hover:border-stone-300"
+            >
+              Open My Day
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedList("overdue")}
+              className="rounded-full border border-stone-200 bg-white/80 px-3 py-1 text-xs font-semibold text-stone-600 transition hover:border-stone-300"
+            >
+              View overdue
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="panel fade-up p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-600">
+              Smart suggestions
+            </h3>
+            <p className="text-xs text-stone-500">
+              Next actions based on urgency, tags, and habits.
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 space-y-2">
+          {suggestionItems.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-stone-200 bg-white/70 p-3 text-xs text-stone-500">
+              No suggestions right now.
+            </div>
+          ) : (
+            suggestionItems.map(({ task, reason }) => (
+              <div
+                key={task.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white/80 px-3 py-2 text-sm"
+              >
+                <div className="min-w-0">
+                  <div className="font-semibold text-stone-800">{task.title}</div>
+                  <div className="text-xs text-stone-500">{reason}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextMyDay = Array.from(
+                        new Set([...(task.myDay ?? []), todayKey])
+                      );
+                      updateTask(task.id, { myDay: nextMyDay });
+                    }}
+                    className="rounded-full border border-stone-200 bg-white/80 px-3 py-1 text-xs font-semibold text-stone-600 transition hover:border-stone-300"
+                  >
+                    Add to My Day
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateTask(task.id, { dueDate: today.toISOString() })}
+                    className="rounded-full border border-stone-200 bg-white/80 px-3 py-1 text-xs font-semibold text-stone-600 transition hover:border-stone-300"
+                  >
+                    Schedule today
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      <div className="panel fade-up p-4">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-600">
+          Weekly stats
+        </h3>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-stone-200 bg-white/80 p-3">
+            <div className="text-xs uppercase tracking-wide text-stone-500">
+              Completed
+            </div>
+            <div className="mt-1 text-2xl font-semibold text-stone-900">
+              {weeklyStats.completedThisWeek}
+            </div>
+            <div className="text-xs text-stone-500">This week</div>
+          </div>
+          <div className="rounded-xl border border-stone-200 bg-white/80 p-3">
+            <div className="text-xs uppercase tracking-wide text-stone-500">
+              Streaks
+            </div>
+            <div className="mt-1 text-2xl font-semibold text-stone-900">
+              {weeklyStats.bestStreak}
+            </div>
+            <div className="text-xs text-stone-500">
+              Best · {weeklyStats.activeStreaks} active
+            </div>
+          </div>
+          <div className="rounded-xl border border-stone-200 bg-white/80 p-3">
+            <div className="text-xs uppercase tracking-wide text-stone-500">
+              Focus minutes
+            </div>
+            <div className="mt-1 text-2xl font-semibold text-stone-900">
+              {weeklyStats.focusMinutesWeek}
+            </div>
+            <div className="text-xs text-stone-500">
+              Avg {weeklyStats.focusAverage}/day
+            </div>
+          </div>
+        </div>
       </div>
 
       {recentlyDeleted ? (
@@ -916,6 +1219,7 @@ export function TaskList() {
               { id: "upcoming", label: "Upcoming" },
               { id: "overdue", label: "Overdue" },
               { id: "habits", label: "Habits" },
+              { id: "someday", label: "Someday" },
               { id: "all", label: "All" },
             ].map((option) => (
               <button
@@ -930,6 +1234,7 @@ export function TaskList() {
                       | "upcoming"
                       | "overdue"
                       | "habits"
+                      | "someday"
                       | "all"
                   )
                 }
@@ -1038,6 +1343,8 @@ export function TaskList() {
           <div className="panel-muted rounded-2xl border border-dashed border-stone-200 p-6 text-sm text-stone-500">
             {selectedList === "inbox"
               ? "No unscheduled tasks yet. Capture thoughts in the brain dump."
+              : selectedList === "someday"
+              ? "Someday is clear. Park long-term ideas here."
               : "No tasks match this view yet."}
           </div>
         ) : (

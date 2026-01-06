@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { format } from "date-fns";
 import { Pause, Play, RotateCcw } from "lucide-react";
+import { useLocalStorage } from "../hooks/useLocalStorage";
 
 const MINUTE = 60;
 
@@ -12,6 +14,10 @@ export function FocusTimer() {
   const [remaining, setRemaining] = useState(25 * MINUTE);
   const [isRunning, setIsRunning] = useState(false);
   const [label, setLabel] = useState("");
+  const [focusLog, setFocusLog] = useLocalStorage<Record<string, number>>(
+    "timely_focus_log",
+    {}
+  );
 
   useEffect(() => {
     setRemaining(mode === "focus" ? focusMinutes * MINUTE : breakMinutes * MINUTE);
@@ -26,6 +32,13 @@ export function FocusTimer() {
         if (current <= 1) {
           clearInterval(interval);
           setIsRunning(false);
+          if (mode === "focus") {
+            const key = format(new Date(), "yyyy-MM-dd");
+            setFocusLog((log) => ({
+              ...log,
+              [key]: (log[key] ?? 0) + focusMinutes,
+            }));
+          }
           setMode((prev) => (prev === "focus" ? "break" : "focus"));
           return 0;
         }
@@ -33,7 +46,7 @@ export function FocusTimer() {
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [isRunning]);
+  }, [isRunning, mode, focusMinutes, setFocusLog]);
 
   const formatted = useMemo(() => {
     const minutes = Math.floor(remaining / MINUTE);
