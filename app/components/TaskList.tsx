@@ -935,7 +935,7 @@ export function TaskList() {
                 }
                 className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
                   selectedList === option.id
-                    ? "border-amber-300 bg-amber-200/70 text-stone-900"
+                    ? "border-amber-500 bg-amber-400 text-stone-900 shadow-sm"
                     : "border-stone-200 bg-white/80 text-stone-600 hover:border-stone-300"
                 }`}
               >

@@ -50,7 +50,7 @@ export function BrainDump() {
           value={value}
           onChange={(event) => setValue(event.target.value)}
           placeholder="Capture anything... (#work @tag >Section !high tomorrow remind 3pm)"
-          className="h-12 flex-1 rounded-xl border border-stone-200 bg-white/90 px-4 text-base text-stone-900 shadow-inner outline-none transition focus:border-amber-400"
+          className="h-12 flex-1 rounded-xl border border-stone-200 bg-white/90 px-4 text-base text-stone-900 shadow-inner outline-none transition focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
         />
         <button
           type="submit"
