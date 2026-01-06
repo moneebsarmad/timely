@@ -20,8 +20,8 @@ export function CategoryFilter({
         onClick={() => onSelect("all")}
         className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
           selectedCategory === "all"
-            ? "border-stone-900 bg-stone-900 text-white"
-            : "border-stone-200 bg-white text-stone-600 hover:border-stone-300"
+            ? "border-amber-300 bg-amber-200/70 text-stone-900"
+            : "border-stone-200 bg-white/80 text-stone-600 hover:border-stone-300"
         }`}
       >
         All
@@ -33,8 +33,8 @@ export function CategoryFilter({
           onClick={() => onSelect(category.id)}
           className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
             selectedCategory === category.id
-              ? "border-stone-900 bg-stone-900 text-white"
-              : "border-stone-200 bg-white text-stone-600 hover:border-stone-300"
+              ? "border-amber-300 bg-amber-200/70 text-stone-900"
+              : "border-stone-200 bg-white/80 text-stone-600 hover:border-stone-300"
           }`}
         >
           <span

@@ -50,7 +50,7 @@ function DayCell({
           </span>
         ) : (
           tasks.map((task) => (
-            <div key={task.id} className="min-w-[220px] max-w-[280px] flex-1">
+            <div key={task.id} className="min-w-[260px] max-w-[340px] flex-1">
               <TaskItem
                 task={task}
                 variant="calendar"

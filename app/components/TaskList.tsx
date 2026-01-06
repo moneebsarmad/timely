@@ -812,48 +812,53 @@ export function TaskList() {
               : "Every task across your workspace."}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {reminderStatus === "unsupported" ? (
-            <span className="rounded-full border border-stone-200 bg-white/80 px-3 py-1 text-xs font-semibold text-stone-500">
-              Reminders unavailable
-            </span>
-          ) : reminderStatus === "granted" ? (
-            <span className="rounded-full border border-stone-200 bg-white/80 px-3 py-1 text-xs font-semibold text-stone-500">
-              Reminders on
-            </span>
-          ) : reminderStatus === "denied" ? (
-            <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-              Reminders blocked
-            </span>
-          ) : (
+        <details className="group rounded-xl border border-stone-200 bg-white/70 px-3 py-2">
+          <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-stone-600">
+            Tools
+          </summary>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {reminderStatus === "unsupported" ? (
+              <span className="rounded-full border border-stone-200 bg-white/80 px-3 py-1 text-xs font-semibold text-stone-500">
+                Reminders unavailable
+              </span>
+            ) : reminderStatus === "granted" ? (
+              <span className="rounded-full border border-stone-200 bg-white/80 px-3 py-1 text-xs font-semibold text-stone-500">
+                Reminders on
+              </span>
+            ) : reminderStatus === "denied" ? (
+              <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                Reminders blocked
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={requestReminderPermission}
+                className="rounded-full border border-stone-200 bg-white/80 px-3 py-1 text-xs font-semibold text-stone-600 transition hover:border-stone-300"
+              >
+                Enable reminders
+              </button>
+            )}
             <button
               type="button"
-              onClick={requestReminderPermission}
-              className="rounded-full border border-stone-200 bg-white/80 px-3 py-1 text-xs font-semibold text-stone-600 transition hover:border-stone-300"
+              onClick={handleExport}
+              className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white/80 px-3 py-1 text-xs font-semibold text-stone-700 transition hover:border-stone-300"
             >
-              Enable reminders
+              <Download className="h-4 w-4" />
+              Export
             </button>
-          )}
-          <button
-            type="button"
-            onClick={handleExport}
-            className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white/80 px-3 py-1 text-xs font-semibold text-stone-700 transition hover:border-stone-300"
-          >
-            <Download className="h-4 w-4" />
-            Export
-          </button>
-          <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-stone-200 bg-white/80 px-3 py-1 text-xs font-semibold text-stone-700 transition hover:border-stone-300">
-            <Upload className="h-4 w-4" />
-            Import
-            <input
-              ref={inputRef}
-              type="file"
-              accept="application/json"
-              onChange={handleImport}
-              className="hidden"
-            />
-          </label>
-        </div>
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-stone-200 bg-white/80 px-3 py-1 text-xs font-semibold text-stone-700 transition hover:border-stone-300">
+              <Upload className="h-4 w-4" />
+              Import
+              <input
+                ref={inputRef}
+                type="file"
+                accept="application/json"
+                onChange={handleImport}
+                className="hidden"
+              />
+            </label>
+          </div>
+        </details>
       </div>
 
       {recentlyDeleted ? (
@@ -898,8 +903,11 @@ export function TaskList() {
         </div>
       </details>
 
-      <div className="panel fade-up p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <details className="panel fade-up p-4">
+        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-stone-500">
+          Views & filters
+        </summary>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">
             {[
               { id: "inbox", label: "Inbox" },
@@ -927,8 +935,8 @@ export function TaskList() {
                 }
                 className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
                   selectedList === option.id
-                    ? "border-stone-900 bg-stone-900 text-white"
-                    : "border-stone-200 bg-white text-stone-600 hover:border-stone-300"
+                    ? "border-amber-300 bg-amber-200/70 text-stone-900"
+                    : "border-stone-200 bg-white/80 text-stone-600 hover:border-stone-300"
                 }`}
               >
                 {option.label}
@@ -941,7 +949,7 @@ export function TaskList() {
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="Search"
-              className="h-9 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none transition focus:border-stone-900 md:w-40"
+              className="h-9 w-full rounded-xl border border-stone-200 bg-white/80 px-3 text-sm text-stone-700 outline-none transition focus:border-amber-400 md:w-40"
             />
             {searchTerm ? (
               <button
@@ -961,7 +969,7 @@ export function TaskList() {
             onSelect={setSelectedCategory}
           />
         </div>
-      </div>
+      </details>
 
       {selectedList === "habits" ? (
         <div className="panel fade-up p-4">
